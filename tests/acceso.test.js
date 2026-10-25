@@ -21,7 +21,7 @@ test('realPath resuelve una junction y un fichero que aún no existe', async () 
     fs.mkdirSync(path.join(d, 'real'));
     fs.symlinkSync(path.join(d, 'real'), path.join(d, 'enlace'), 'junction');
     const r = await realPath(path.join(d, 'enlace', 'nuevo.md'));
-    assert.equal(key(r), key(path.join(fs.realpathSync(d), 'real', 'nuevo.md')));
+    assert.equal(key(r), key(path.join(fs.realpathSync.native(d), 'real', 'nuevo.md')));
   } finally {
     rm(d);
   }
