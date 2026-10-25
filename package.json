@@ -9,8 +9,8 @@
     "watch": "node scripts/build.js --watch",
     "dist": "node scripts/build.js && electron-builder --win nsis portable"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Jorge Ferreira Rey",
+  "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
     "electron": "^45.0.0",

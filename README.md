@@ -29,3 +29,11 @@ npm run dist       # genera el instalador y la versión portable en release/
 ## Estado
 
 Primera versión de trabajo. Pendiente: API de plugins y conexión MCP para agentes.
+
+## Colaborar
+
+Las propuestas de cambio (Pull Requests) y los avisos de errores (Issues) son bienvenidos. Las normas están en [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licencia
+
+[MIT](LICENSE) © 2026 Jorge Ferreira Rey
