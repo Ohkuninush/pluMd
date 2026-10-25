@@ -10,6 +10,14 @@
     "dist": "node scripts/build.js && electron-builder --win nsis portable"
   },
   "author": "Jorge Ferreira Rey",
+  "homepage": "https://github.com/jfr1504/pluMd",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jfr1504/pluMd.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jfr1504/pluMd/issues"
+  },
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
