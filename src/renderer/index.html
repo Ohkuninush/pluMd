@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file: https:;" />
+  <title>Visor MD</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="titlebar">
+    <div class="qa">
+      <span class="brand" title="Visor MD">MD</span>
+      <button type="button" class="rb rb-ic" data-cmd="save" data-icon="save" title="Guardar (Ctrl+S)"></button>
+      <button type="button" class="rb rb-ic" data-cmd="undo" data-icon="undo" title="Deshacer (Ctrl+Z)"></button>
+      <button type="button" class="rb rb-ic" data-cmd="redo" data-icon="redo" title="Rehacer (Ctrl+Y)"></button>
+    </div>
+    <div class="doc-title"><span id="filename">Documento sin título</span><span id="dirty" hidden>●</span></div>
+    <div class="tb-right"></div>
+  </header>
+  <nav id="tabs">
+    <button type="button" class="tab file" data-cmd="file-menu">Archivo</button>
+    <button type="button" class="tab active" data-tab="home">Inicio</button>
+    <button type="button" class="tab" data-tab="insert">Insertar</button>
+    <button type="button" class="tab" data-tab="view">Vista</button>
+    <span class="spacer"></span>
+    <button type="button" id="btn-collapse" class="rb rb-ic" data-cmd="ribbon-toggle" data-icon="chevronup" title="Contraer la cinta"></button>
+  </nav>
+  <div id="panels"></div>
+  <div id="banner" hidden></div>
+  <main>
+    <div id="editor"></div>
+  </main>
+  <footer id="statusbar">
+    <span id="wordcount">0 palabras</span>
+    <span class="spacer"></span>
+    <span class="views">
+      <button type="button" class="rb rb-ic" data-cmd="mode-read" data-state="mode-read" data-icon="eye" title="Lectura"></button>
+      <button type="button" class="rb rb-ic" data-cmd="mode-source" data-state="mode-source" data-icon="filecode" title="Código"></button>
+    </span>
+    <span class="zoom">
+      <button type="button" class="rb rb-ic" data-cmd="zoom-out" data-icon="zoomout" title="Alejar"></button>
+      <input id="zoom" type="range" min="50" max="250" step="10" value="100" title="Zoom" />
+      <button type="button" class="rb rb-ic" data-cmd="zoom-in" data-icon="zoomin" title="Acercar"></button>
+      <span id="zoomval">100%</span>
+    </span>
+  </footer>
+  <div id="dlg" hidden></div>
+  <script src="renderer.js"></script>
+</body>
+</html>

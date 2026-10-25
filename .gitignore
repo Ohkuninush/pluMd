@@ -1,0 +1,9 @@
+# Dependencias y resultados de compilación: se regeneran con npm
+node_modules/
+dist/
+release/
+
+# Ficheros temporales
+err.log
+*.log
+.claude/
