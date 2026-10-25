@@ -6,20 +6,33 @@ import { searchKeymap, openSearchPanel } from '@codemirror/search';
 import { livePreview, skipHiddenForward } from './livePreview.js';
 import { tableField } from './tables.js';
 import { codeLanguages, codeHighlight } from './highlight.js';
+import { headingFolding, foldKeymap, foldAllHeadings, expandAll } from './folding.js';
+import { setScope } from './colors.js';
+import { applySkin, listSkins, getSkin } from './skins.js';
 import { setBaseDir, dirname } from './images.js';
 import {
   toggleWrap, setParagraphStyle, toggleList, toggleTaskList, changeIndent, insertRule, insertCodeBlock, exitCodeBlock,
   insertComment, insertFrontmatter, clearFormat, paragraphEnter, softBreak, exitEmptyListItem, clipCopy, clipPaste, formatState,
   insertTable, insertLink, insertImage, linkAt, normalizeUrl,
 } from './commands.js';
-import { askLink, askImage } from './dialogs.js';
+import { askLink, askImage, openColors, showAbout, confirmBox, REPO_URL } from './dialogs.js';
 import { createRibbon } from './ribbon.js';
+import { createExplorer } from './explorer.js';
 
 const $ = (id) => document.getElementById(id);
+const scroller = () => document.querySelector('main');
 
-const state = { file: null, mtimeMs: null, dirty: false, mode: 'read', loading: false, zoom: 100 };
+const state = { mode: 'read', zoom: 100 };
 const modeCompartment = new Compartment();
 let ribbon = null;
+let explorer = null;
+
+// ---- Documentos abiertos (una pestaña por documento) ----
+// Cada documento conserva su propio EditorState: texto, deshacer, selección y pliegues.
+const docs = [];
+let cur = null;
+let nextId = 1;
+let untitledCount = 0;
 
 // Lectura: documento limpio (marcas ocultas), editable como en un procesador de textos.
 // Código: el Markdown tal cual.
@@ -45,7 +58,7 @@ function endKey(v, extend) {
   return true;
 }
 
-const askImageHere =(d) => askImage(d, () => state.file);
+const askImageHere = (d) => askImage(d, () => cur && cur.file);
 
 let countTimer = null;
 function updateCount(s) {
@@ -56,70 +69,82 @@ function updateCount(s) {
   }, 200);
 }
 
-const view = new EditorView({
-  parent: $('editor'),
-  state: EditorState.create({
-    doc: '',
-    extensions: [
-      history(),
-      drawSelection(),
-      EditorView.lineWrapping,
-      placeholder('Escribe aquí o abre un fichero .md (Ctrl+O)'),
-      markdown({ base: markdownLanguage, codeLanguages }),
-      codeHighlight,
-      // Con las marcas de formato ocultas, Fin e Intro dejan el cursor fuera del formato: así un Intro
-      // al final de un texto en negrita no parte la negrita entre dos párrafos.
-      Prec.highest(keymap.of([
-        {
-          key: 'Enter',
-          run: (v) => {
-            if (exitEmptyListItem(v)) return true;
-            const s = v.state.selection.main;
-            if (s.empty) {
-              const p = skipHiddenForward(v, s.head);
-              if (p !== s.head) v.dispatch({ selection: { anchor: p } });
-            }
-            if (state.mode === 'read' && paragraphEnter(v)) return true;
-            return false; // sigue el Intro normal (continuar lista, etc.)
-          },
-        },
-        { key: 'Shift-Enter', run: (v) => state.mode === 'read' && softBreak(v) },
-        { key: 'End', run: (v) => endKey(v, false), shift: (v) => endKey(v, true) },
-      ])),
-      keymap.of([
-        { key: 'Mod-b', run: (v) => (toggleWrap(v, '**'), true) },
-        { key: 'Mod-i', run: (v) => (toggleWrap(v, '*'), true) },
-        { key: 'Mod-u', run: (v) => (toggleWrap(v, '<u>', '</u>'), true) },
-        { key: 'Mod-k', run: (v) => (insertLink(v, askLink), true) },
-        { key: 'Mod-h', run: (v) => (openSearchPanel(v), true) },
-        // Tab sangra los elementos de lista; en texto normal no hace nada (Markdown no tiene sangría de párrafo).
-        { key: 'Tab', run: (v) => changeIndent(v, 1) || true },
-        { key: 'Shift-Tab', run: (v) => changeIndent(v, -1) || true },
-        { key: 'Mod-Enter', run: (v) => exitCodeBlock(v) },
-        { key: 'ArrowDown', run: (v) => exitCodeBlock(v, true) },
-        ...defaultKeymap, ...historyKeymap, ...searchKeymap,
-      ]),
-      linkClicks,
-      modeCompartment.of(modeExtensions('read')),
-      EditorView.updateListener.of((u) => {
-        if (u.docChanged && !state.loading) setDirty(true);
-        if (u.docChanged) updateCount(u.state);
-        if ((u.docChanged || u.selectionSet) && ribbon) ribbon.update(formatState(u.state));
-      }),
-    ],
+const baseExtensions = [
+  history(),
+  drawSelection(),
+  EditorView.lineWrapping,
+  placeholder('Escribe aquí o abre un fichero .md (Ctrl+O)'),
+  markdown({ base: markdownLanguage, codeLanguages }),
+  codeHighlight,
+  headingFolding,
+  // Con las marcas de formato ocultas, Fin e Intro dejan el cursor fuera del formato: así un Intro
+  // al final de un texto en negrita no parte la negrita entre dos párrafos.
+  Prec.highest(keymap.of([
+    {
+      key: 'Enter',
+      run: (v) => {
+        if (exitEmptyListItem(v)) return true;
+        const s = v.state.selection.main;
+        if (s.empty) {
+          const p = skipHiddenForward(v, s.head);
+          if (p !== s.head) v.dispatch({ selection: { anchor: p } });
+        }
+        if (state.mode === 'read' && paragraphEnter(v)) return true;
+        return false; // sigue el Intro normal (continuar lista, etc.)
+      },
+    },
+    { key: 'Shift-Enter', run: (v) => state.mode === 'read' && softBreak(v) },
+    { key: 'End', run: (v) => endKey(v, false), shift: (v) => endKey(v, true) },
+  ])),
+  keymap.of([
+    { key: 'Mod-b', run: (v) => (toggleWrap(v, '**'), true) },
+    { key: 'Mod-i', run: (v) => (toggleWrap(v, '*'), true) },
+    { key: 'Mod-u', run: (v) => (toggleWrap(v, '<u>', '</u>'), true) },
+    { key: 'Mod-k', run: (v) => (insertLink(v, askLink), true) },
+    { key: 'Mod-h', run: (v) => (openSearchPanel(v), true) },
+    // Tab sangra los elementos de lista; en texto normal no hace nada (Markdown no tiene sangría de párrafo).
+    { key: 'Tab', run: (v) => changeIndent(v, 1) || true },
+    { key: 'Shift-Tab', run: (v) => changeIndent(v, -1) || true },
+    { key: 'Mod-Enter', run: (v) => exitCodeBlock(v) },
+    { key: 'ArrowDown', run: (v) => exitCodeBlock(v, true) },
+    ...foldKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap,
+  ]),
+  linkClicks,
+  modeCompartment.of(modeExtensions(state.mode)),
+  EditorView.updateListener.of((u) => {
+    if (u.docChanged && cur) {
+      if (!cur.dirty) { cur.dirty = true; renderTabs(); }
+      updateTitle();
+      updateCount(u.state);
+    }
+    if ((u.docChanged || u.selectionSet) && ribbon) ribbon.update(formatState(u.state));
   }),
-});
+];
 
-function setDirty(v) {
-  state.dirty = v;
-  $('dirty').hidden = !v;
-  updateTitle();
+function newDocObj(file, content, mtimeMs) {
+  return {
+    id: nextId++,
+    file,
+    mtimeMs,
+    dirty: false,
+    scroll: 0,
+    untitled: file ? 0 : ++untitledCount,
+    state: EditorState.create({ doc: content, extensions: baseExtensions }),
+  };
 }
 
+const first = newDocObj(null, '', null);
+docs.push(first);
+cur = first;
+
+const view = new EditorView({ parent: $('editor'), state: first.state });
+
+const docName = (d) => (d.file ? d.file.split(/[\\/]/).pop() : d.untitled > 1 ? `Documento sin título ${d.untitled}` : 'Documento sin título');
+
 function updateTitle() {
-  const name = state.file ? state.file.split(/[\\/]/).pop() : 'Documento sin título';
-  $('filename').textContent = name;
-  window.api.setTitle(`${state.dirty ? '● ' : ''}${name} — Visor MD`);
+  $('filename').textContent = docName(cur);
+  $('dirty').hidden = !cur.dirty;
+  window.api.setTitle(`${cur.dirty ? '● ' : ''}${docName(cur)} — PluMd`);
 }
 
 function showBanner(text, actions = []) {
@@ -135,6 +160,129 @@ function showBanner(text, actions = []) {
   b.hidden = false;
 }
 
+// ---- Pestañas ----
+function renderTabs() {
+  const bar = $('doctabs');
+  bar.textContent = '';
+  for (const d of docs) {
+    const t = document.createElement('div');
+    t.className = 'dtab' + (d === cur ? ' active' : '');
+    t.setAttribute('role', 'tab');
+    t.title = d.file || docName(d);
+    const name = document.createElement('span');
+    name.className = 'dtab-name';
+    name.textContent = docName(d);
+    const dot = document.createElement('span');
+    dot.className = 'dtab-dirty';
+    dot.textContent = '●';
+    dot.hidden = !d.dirty;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'dtab-close';
+    close.title = 'Cerrar (Ctrl+W)';
+    close.textContent = '×';
+    t.append(name, dot, close);
+    t.addEventListener('click', (e) => (e.target.closest('.dtab-close') ? closeDoc(d) : activate(d)));
+    t.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); closeDoc(d); } });
+    bar.append(t);
+  }
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.className = 'dtab-new';
+  plus.title = 'Nuevo documento (Ctrl+N)';
+  plus.textContent = '+';
+  plus.addEventListener('click', () => newDoc());
+  bar.append(plus);
+  bar.querySelector('.dtab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+function activate(doc) {
+  if (cur && cur !== doc) {
+    cur.state = view.state;
+    cur.scroll = scroller().scrollTop;
+  }
+  cur = doc;
+  // La carpeta base se fija antes de montar el estado para que las imágenes relativas se resuelvan bien.
+  setBaseDir(doc.file ? dirname(doc.file) : null);
+  view.setState(doc.state);
+  view.dispatch({ effects: modeCompartment.reconfigure(modeExtensions(state.mode)) });
+  $('editor').classList.toggle('source', state.mode === 'source');
+  $('banner').hidden = true;
+  renderTabs();
+  updateTitle();
+  updateCount(view.state);
+  ribbon?.update(formatState(view.state));
+  explorer?.setActive(doc.file);
+  requestAnimationFrame(() => { scroller().scrollTop = doc.scroll; });
+  view.focus();
+}
+
+function newDoc() {
+  const d = newDocObj(null, '', null);
+  docs.push(d);
+  activate(d);
+}
+
+function closeDoc(d) {
+  if (d.dirty && !confirm(`«${docName(d)}» tiene cambios sin guardar. ¿Cerrar sin guardar?`)) return;
+  const i = docs.indexOf(d);
+  docs.splice(i, 1);
+  if (!docs.length) return newDoc();
+  if (d === cur) activate(docs[Math.min(i, docs.length - 1)]);
+  else renderTabs();
+}
+
+async function openFile(path) {
+  if (!path) return;
+  const same = docs.find((d) => d.file && d.file.toLowerCase() === path.toLowerCase());
+  if (same) return activate(same);
+  try {
+    const f = await window.api.readFile(path);
+    const doc = newDocObj(f.path, f.content, f.mtimeMs);
+    // Un documento nuevo, vacío y sin tocar se reutiliza en vez de dejar una pestaña vacía.
+    const pristine = !!cur && !cur.file && !cur.dirty && view.state.doc.length === 0;
+    if (pristine) docs[docs.indexOf(cur)] = doc;
+    else docs.push(doc);
+    if (pristine) cur = null;
+    activate(doc);
+  } catch (e) {
+    showBanner(`No se pudo abrir el fichero: ${e.message}`);
+  }
+}
+
+async function save(force = false) {
+  const d = cur;
+  if (!d.file) return saveAs();
+  const content = view.state.doc.toString();
+  const r = await window.api.writeFile({ path: d.file, content, expectedMtimeMs: d.mtimeMs, force });
+  if (r.conflict) {
+    showBanner('El fichero ha cambiado en disco desde que lo abriste.', [
+      ['Sobrescribir', () => save(true)],
+      ['Cancelar', () => {}],
+    ]);
+    return;
+  }
+  d.mtimeMs = r.mtimeMs;
+  d.dirty = false;
+  renderTabs();
+  if (d === cur) updateTitle();
+}
+
+async function saveAs() {
+  const d = cur;
+  const content = view.state.doc.toString();
+  const p = await window.api.saveAsDialog(d.file || 'sin-titulo.md');
+  if (!p) return;
+  const r = await window.api.writeFile({ path: p, content, expectedMtimeMs: null, force: true });
+  d.file = p;
+  d.mtimeMs = r.mtimeMs;
+  d.dirty = false;
+  if (d === cur) setBaseDir(dirname(p));
+  renderTabs();
+  if (d === cur) { updateTitle(); explorer?.setActive(p); }
+  explorer?.refresh();
+}
+
 function setMode(mode) {
   state.mode = mode;
   view.dispatch({ effects: modeCompartment.reconfigure(modeExtensions(mode)) });
@@ -143,83 +291,36 @@ function setMode(mode) {
   view.focus();
 }
 
-function applyTheme(t) {
-  document.documentElement.dataset.theme = t;
-  ribbon.setActive({ 'theme-light': t === 'light', 'theme-dark': t === 'dark' });
+// Aspecto = skin (forma) x modo (claro/oscuro). Los colores personalizados son de cada combinación.
+function refreshAppearance() {
+  const root = document.documentElement;
+  const skin = root.dataset.skin || 'plumd';
+  const theme = root.dataset.theme || 'light';
+  setScope(skin, theme);
+  const active = { 'theme-light': theme === 'light', 'theme-dark': theme === 'dark' };
+  for (const k of listSkins()) active[`skin-${k.id}`] = k.id === skin;
+  ribbon.setActive(active);
 }
 function chooseTheme(t) {
-  applyTheme(t);
+  document.documentElement.dataset.theme = t;
   try { localStorage.setItem('theme', t); } catch {}
+  refreshAppearance();
 }
+async function chooseSkin(id) {
+  const applied = await applySkin(id);
+  try { localStorage.setItem('skin', applied); } catch {}
+  refreshAppearance();
+}
+const appearanceLabel = () => {
+  const root = document.documentElement;
+  return `${getSkin(root.dataset.skin).name}, modo ${root.dataset.theme === 'dark' ? 'oscuro' : 'claro'}`;
+};
 
 function setZoom(z) {
   state.zoom = Math.max(50, Math.min(250, Math.round(z)));
   $('editor').style.setProperty('--zoom', state.zoom / 100);
   $('zoom').value = state.zoom;
   $('zoomval').textContent = `${state.zoom}%`;
-}
-
-async function confirmDiscard() {
-  return !state.dirty || confirm('Hay cambios sin guardar. ¿Descartarlos?');
-}
-
-function loadContent(path, content, mtimeMs) {
-  // La carpeta base se fija antes de cargar para que las imágenes relativas se resuelvan bien.
-  setBaseDir(path ? dirname(path) : null);
-  state.loading = true;
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: content }, selection: { anchor: 0 } });
-  state.loading = false;
-  Object.assign(state, { file: path, mtimeMs });
-  $('banner').hidden = true;
-  setDirty(false);
-  updateCount(view.state);
-}
-
-async function openFile(path) {
-  if (!path || !(await confirmDiscard())) return;
-  try {
-    const f = await window.api.readFile(path);
-    loadContent(f.path, f.content, f.mtimeMs);
-    view.focus();
-  } catch (e) {
-    showBanner(`No se pudo abrir el fichero: ${e.message}`);
-  }
-}
-
-async function newDoc() {
-  if (!(await confirmDiscard())) return;
-  loadContent(null, '', null);
-  view.focus();
-}
-
-async function save(force = false) {
-  if (!state.file) return saveAs();
-  const r = await window.api.writeFile({
-    path: state.file,
-    content: view.state.doc.toString(),
-    expectedMtimeMs: state.mtimeMs,
-    force,
-  });
-  if (r.conflict) {
-    showBanner('El fichero ha cambiado en disco desde que lo abriste.', [
-      ['Sobrescribir', () => save(true)],
-      ['Cancelar', () => {}],
-    ]);
-    return;
-  }
-  state.mtimeMs = r.mtimeMs;
-  setDirty(false);
-}
-
-async function saveAs() {
-  const suggested = state.file || 'sin-titulo.md';
-  const p = await window.api.saveAsDialog(suggested);
-  if (!p) return;
-  const r = await window.api.writeFile({ path: p, content: view.state.doc.toString(), expectedMtimeMs: null, force: true });
-  state.file = p;
-  state.mtimeMs = r.mtimeMs;
-  setBaseDir(dirname(p));
-  setDirty(false);
 }
 
 // ---- Comandos de la cinta ----
@@ -229,6 +330,11 @@ const commands = {
   open: async () => openFile(await window.api.openDialog()),
   save: () => save(),
   saveas: () => saveAs(),
+  close: () => closeDoc(cur),
+  'open-folder': () => explorer.openFolderDialog(),
+  'toggle-sidebar': () => explorer.toggle(),
+  about: async () => showAbout(await window.api.appInfo()),
+  repo: () => window.api.openExternal(REPO_URL),
   // Portapapeles y edición
   undo: (v) => (undo(v), v.focus()),
   redo: (v) => (redo(v), v.focus()),
@@ -269,7 +375,11 @@ const commands = {
   'zoom-reset': () => setZoom(100),
   'theme-light': () => chooseTheme('light'),
   'theme-dark': () => chooseTheme('dark'),
+  'fold-all': (v) => (foldAllHeadings(v), v.focus()),
+  'unfold-all': (v) => (expandAll(v), v.focus()),
+  colors: () => openColors(appearanceLabel()),
 };
+for (const k of listSkins()) commands[`skin-${k.id}`] = () => chooseSkin(k.id);
 for (const n of [1, 2, 3, 4, 5, 6]) commands[`style-h${n}`] = (v) => setParagraphStyle(v, `h${n}`);
 commands['style-normal'] = (v) => setParagraphStyle(v, 'normal');
 commands['style-quote'] = (v) => setParagraphStyle(v, 'quote');
@@ -277,12 +387,51 @@ commands['style-quote'] = (v) => setParagraphStyle(v, 'quote');
 ribbon = createRibbon({ run: (cmd, arg) => commands[cmd]?.(view, arg) });
 ribbon.update(formatState(view.state));
 
-// Tema: por defecto el del sistema; la elección manual se recuerda.
-let savedTheme = null;
-try { savedTheme = localStorage.getItem('theme'); } catch {}
-applyTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+// ---- Panel de carpetas ----
+const sameFile = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+let bannerTimer = null;
+function toast(text) {
+  showBanner(text);
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { if ($('banner').textContent.startsWith(text)) $('banner').hidden = true; }, 8000);
+}
+
+explorer = createExplorer({
+  onOpen: (p) => openFile(p),
+  // Un documento renombrado desde el panel sigue abierto con su nuevo nombre.
+  onRenamed: (oldP, newP) => {
+    for (const d of docs) if (sameFile(d.file, oldP)) d.file = newP;
+    if (cur && sameFile(cur.file, newP)) setBaseDir(dirname(newP));
+    renderTabs();
+    updateTitle();
+  },
+  // Un documento enviado a la Papelera deja su pestaña abierta como documento sin guardar,
+  // para no perder el texto si fue un error (con Guardar como se recupera).
+  onDeleted: (p) => {
+    for (const d of docs) {
+      if (!sameFile(d.file, p)) continue;
+      d.file = null;
+      d.mtimeMs = null;
+      d.dirty = true;
+      d.untitled = ++untitledCount;
+    }
+    renderTabs();
+    updateTitle();
+    toast('El documento se movió a la Papelera. Su pestaña sigue abierta como documento sin guardar.');
+  },
+  isOpenDirty: (p) => docs.some((d) => d.dirty && sameFile(d.file, p)),
+  confirm: confirmBox,
+  notify: toast,
+  onVisibility: (v) => ribbon.setActive({ sidebar: v }),
+});
+explorer.restore();
+
+// early.js ya fijó el tema y el skin guardados antes de pintar; aquí solo se sincronizan colores y cinta.
+refreshAppearance();
 setMode('read');
 setZoom(100);
+renderTabs();
+updateTitle();
 
 $('zoom').addEventListener('input', (e) => setZoom(+e.target.value));
 window.addEventListener('wheel', (e) => {
@@ -293,16 +442,65 @@ window.addEventListener('wheel', (e) => {
 
 window.api.onOpenFile(openFile);
 
+// ---- Arrastrar ficheros .md sobre la ventana: cada uno se abre en su pestaña ----
+const MD_RE = /\.(md|markdown|txt)$/i;
+const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+let dragDepth = 0;
+const endDrag = () => { dragDepth = 0; $('dropzone').hidden = true; };
+// En fase de captura, para que el editor no inserte el contenido del fichero como texto.
+window.addEventListener('dragenter', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  $('dropzone').hidden = false;
+}, true);
+window.addEventListener('dragover', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'copy';
+}, true);
+window.addEventListener('dragleave', (e) => {
+  if (!hasFiles(e)) return;
+  if (--dragDepth <= 0) endDrag();
+}, true);
+window.addEventListener('drop', async (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  endDrag();
+  const paths = [...e.dataTransfer.files].map((f) => window.api.pathForFile(f)).filter(Boolean);
+  const files = [];
+  let skipped = 0;
+  for (const p of paths) {
+    if (await window.api.isDir(p)) await explorer.setRoot(p); // una carpeta abre el panel de carpetas
+    else if (MD_RE.test(p)) files.push(p);
+    else skipped++;
+  }
+  if (skipped) showBanner('Solo se pueden abrir ficheros .md, .markdown o .txt, o carpetas.');
+  for (const p of files) await openFile(p);
+}, true);
+
+window.addEventListener('beforeunload', (e) => {
+  if (docs.some((d) => d.dirty)) { e.preventDefault(); e.returnValue = ''; }
+});
+
 window.addEventListener('keydown', async (e) => {
   if (!e.ctrlKey) return;
   const k = e.key.toLowerCase();
   if (k === 's') { e.preventDefault(); e.shiftKey ? saveAs() : save(); }
-  else if (k === 'o') { e.preventDefault(); commands.open(); }
+  else if (k === 'o' && !e.shiftKey) { e.preventDefault(); commands.open(); }
   else if (k === 'n') { e.preventDefault(); newDoc(); }
+  else if (k === 'w') { e.preventDefault(); closeDoc(cur); }
+  else if (k === 'tab') {
+    e.preventDefault();
+    const i = docs.indexOf(cur);
+    activate(docs[(i + (e.shiftKey ? docs.length - 1 : 1)) % docs.length]);
+  }
+  else if (k === 'e' && e.shiftKey) { e.preventDefault(); explorer.toggle(); }
+  else if (k === 'o' && e.shiftKey) { e.preventDefault(); explorer.openFolderDialog(); }
   else if (k === 'e') { e.preventDefault(); setMode(state.mode === 'read' ? 'source' : 'read'); }
   else if (k === '=' || k === '+') { e.preventDefault(); setZoom(state.zoom + 10); }
   else if (k === '-') { e.preventDefault(); setZoom(state.zoom - 10); }
   else if (k === '0') { e.preventDefault(); setZoom(100); }
 });
-
-updateTitle();

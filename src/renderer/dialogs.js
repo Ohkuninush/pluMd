@@ -1,4 +1,5 @@
 import { relativeTo } from './images.js';
+import { COLOR_ITEMS, colorOf, savedColors, setColor, resetColors } from './colors.js';
 
 // Diálogo modal genérico. fields: [{ id, label, value, placeholder, browse }]
 // Devuelve { [id]: valor } | { remove: true } | null (cancelado).
@@ -114,3 +115,168 @@ export const askImage = ({ alt = '', url = '', existing = false }, getFile) =>
       { id: 'alt', label: 'Texto alternativo', value: alt },
     ],
   });
+
+// ---- Utilidades de los cuadros de diálogo propios ----
+
+function openBox(cls) {
+  const host = document.getElementById('dlg');
+  host.textContent = '';
+  const box = document.createElement('div');
+  box.className = `dlg-box ${cls}`;
+  host.append(box);
+  host.hidden = false;
+  return { host, box };
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// Cierra con Escape o clic fuera del cuadro. Devuelve una promesa que se resuelve al cerrar.
+function closable(host, box) {
+  return new Promise((resolve) => {
+    const done = () => {
+      host.hidden = true;
+      host.textContent = '';
+      host.removeEventListener('keydown', onKey);
+      host.removeEventListener('mousedown', onOut);
+      resolve();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') done(); };
+    const onOut = (e) => { if (e.target === host) done(); };
+    host.addEventListener('keydown', onKey);
+    host.addEventListener('mousedown', onOut);
+    box.querySelector('[data-close]').addEventListener('click', done);
+    box.querySelector('[data-close]').focus();
+  });
+}
+
+// ---- Colores personalizables ----
+
+export function openColors(label) {
+  const { host, box } = openBox('dlg-colors');
+  box.append(el('h3', null, `Colores: ${label}`));
+  box.append(el('p', 'dlg-hint', 'Los cambios se aplican al momento y se recuerdan. Cada combinación de aspecto y modo (claro u oscuro) tiene sus propios colores. Se ven en el modo Lectura.'));
+
+  const list = el('div', 'color-list');
+  const rows = [];
+  for (const [key, label] of COLOR_ITEMS) {
+    const row = el('div', 'color-row');
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = colorOf(key);
+    const reset = el('button', 'color-reset', 'Restablecer');
+    reset.type = 'button';
+    const sync = () => { reset.hidden = !savedColors()[key]; };
+    input.addEventListener('input', () => { setColor(key, input.value); sync(); });
+    reset.addEventListener('click', () => { setColor(key, null); input.value = colorOf(key); sync(); });
+    sync();
+    row.append(el('span', 'color-label', label), input, reset);
+    list.append(row);
+    rows.push({ key, input, sync });
+  }
+  box.append(list);
+
+  const actions = el('div', 'dlg-actions');
+  const all = el('button', null, 'Restablecer todo');
+  all.type = 'button';
+  all.addEventListener('click', () => {
+    resetColors();
+    rows.forEach((r) => { r.input.value = colorOf(r.key); r.sync(); });
+  });
+  const close = el('button', 'primary', 'Cerrar');
+  close.type = 'button';
+  close.dataset.close = '1';
+  actions.append(all, el('span', 'spacer'), close);
+  box.append(actions);
+  return closable(host, box);
+}
+
+// ---- Acerca de ----
+
+const MIT_TEXT = `MIT License
+
+Copyright (c) 2026 Jorge Ferreira Rey
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`;
+
+export const REPO_URL = 'https://github.com/jfr1504/pluMd';
+
+export function showAbout(info) {
+  const { host, box } = openBox('dlg-about');
+  const head = el('div', 'about-head');
+  const logo = document.createElement('img');
+  logo.className = 'about-logo';
+  logo.src = 'logo.svg';
+  logo.alt = '';
+  head.append(logo);
+  const t = el('div');
+  t.append(el('h3', 'about-title', info.name || 'PluMd'), el('div', 'about-version', `Versión ${info.version}`));
+  head.append(t);
+  box.append(head);
+
+  box.append(el('p', null, 'Editor y visor de Markdown para Windows, con cinta de opciones tipo Word y vista de lectura editable. Primer servicio de una plataforma de herramientas con arquitectura de plugins.'));
+
+  const dl = el('dl', 'about-data');
+  const add = (k, v) => { dl.append(el('dt', null, k), el('dd', null, v)); };
+  add('Autor', 'Jorge Ferreira Rey');
+  add('Copyright', '© 2026 Jorge Ferreira Rey');
+  add('Licencia', 'MIT: software libre. Puedes usarlo, copiarlo, modificarlo y distribuirlo conservando el aviso de copyright. Se ofrece sin garantía.');
+  add('Código fuente', REPO_URL);
+  add('Tecnología', `Electron ${info.electron} · Chromium ${info.chrome} · Node ${info.node} · CodeMirror 6`);
+  add('Tipografía', 'Inter (skin Mac), de The Inter Project Authors, bajo licencia SIL Open Font License 1.1.');
+  box.append(dl);
+
+  const det = el('details', 'about-license');
+  det.append(el('summary', null, 'Texto completo de la licencia'), el('pre', null, MIT_TEXT));
+  box.append(det);
+
+  const actions = el('div', 'dlg-actions');
+  const gh = el('button', null, 'Abrir en GitHub');
+  gh.type = 'button';
+  gh.addEventListener('click', () => window.api.openExternal(REPO_URL));
+  const close = el('button', 'primary', 'Cerrar');
+  close.type = 'button';
+  close.dataset.close = '1';
+  actions.append(gh, el('span', 'spacer'), close);
+  box.append(actions);
+  return closable(host, box);
+}
+
+// ---- Confirmación ----
+
+// Devuelve true si el usuario acepta. Con danger=true el foco empieza en Cancelar.
+export function confirmBox({ title, message, okLabel = 'Aceptar', danger = false }) {
+  const { host, box } = openBox('dlg-confirm');
+  box.append(el('h3', null, title), el('p', 'dlg-msg', message));
+  const actions = el('div', 'dlg-actions');
+  const cancel = el('button', null, 'Cancelar');
+  cancel.type = 'button';
+  const ok = el('button', danger ? 'danger' : 'primary', okLabel);
+  ok.type = 'button';
+  actions.append(el('span', 'spacer'), cancel, ok);
+  box.append(actions);
+  (danger ? cancel : ok).focus();
+  return new Promise((resolve) => {
+    const done = (v) => {
+      host.hidden = true;
+      host.textContent = '';
+      host.removeEventListener('keydown', onKey);
+      host.removeEventListener('mousedown', onOut);
+      resolve(v);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    const onOut = (e) => { if (e.target === host) done(false); };
+    host.addEventListener('keydown', onKey);
+    host.addEventListener('mousedown', onOut);
+    cancel.addEventListener('click', () => done(false));
+    ok.addEventListener('click', () => done(true));
+  });
+}

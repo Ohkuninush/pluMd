@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { createFsOps } = require('./fsops');
 
 // Un único proceso: un doble clic con la app abierta abre el fichero en la ventana existente.
 const gotLock = app.requestSingleInstanceLock();
@@ -24,7 +25,8 @@ function createWindow() {
     width: 1200,
     height: 800,
     backgroundColor: '#ffffff',
-    title: 'Visor MD',
+    title: 'PluMd',
+    icon: path.join(__dirname, '..', '..', 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -33,6 +35,21 @@ function createWindow() {
     },
   });
   win.setMenuBarVisibility(false);
+  // La ventana nunca navega fuera de la aplicación (p. ej. al soltar un fichero fuera de la zona de arrastre).
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // Cerrar con documentos sin guardar: pide confirmación.
+  win.webContents.on('will-prevent-unload', (e) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      buttons: ['Salir sin guardar', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Cambios sin guardar',
+      message: 'Hay documentos con cambios sin guardar. ¿Salir de todos modos?',
+    });
+    if (choice === 0) e.preventDefault(); // ignora el bloqueo y deja cerrar
+  });
   win.loadFile(path.join(__dirname, '..', '..', 'dist', 'index.html'));
   win.webContents.on('did-finish-load', () => {
     if (pendingFile) {
@@ -64,6 +81,39 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
+
+// ---- IPC: panel de carpetas ----
+// Todo pasa por fsops.js: solo se opera dentro de la carpeta que el usuario eligió, nunca se sobrescribe
+// y borrar solo envía a la Papelera y se niega en unidades de red.
+const ops = createFsOps({ trash: (p) => shell.trashItem(p) });
+const guard = (fn) => async (_e, ...args) => {
+  try {
+    return await fn(...args);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+};
+
+ipcMain.handle('fs:pickFolder', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
+  return r.canceled ? null : r.filePaths[0];
+});
+ipcMain.handle('fs:isDir', async (_e, p) => {
+  try {
+    return (await fs.promises.stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+});
+ipcMain.handle('fs:setRoot', guard(async (dir) => ({ ok: true, ...(await ops.setRoot(dir)) })));
+ipcMain.handle('fs:listDir', guard(async (dir) => ({ ok: true, entries: await ops.listDir(dir) })));
+ipcMain.handle('fs:create', guard((dir, name) => ops.create(dir, name)));
+ipcMain.handle('fs:rename', guard((p, name) => ops.rename(p, name)));
+ipcMain.handle('fs:copy', guard((src, dir) => ops.copy(src, dir)));
+ipcMain.handle('fs:delete', guard((p) => ops.remove(p)));
+ipcMain.handle('fs:reveal', (_e, p) => {
+  if (ops.inRoot(p)) shell.showItemInFolder(p);
+});
 
 // ---- IPC: ficheros ----
 // La app nunca borra ni mueve ficheros. Solo lee y escribe el que el usuario abre.
@@ -124,5 +174,13 @@ ipcMain.handle('file:pickImage', async () => {
 
 ipcMain.handle('clipboard:read', () => clipboard.readText());
 ipcMain.handle('clipboard:write', (_e, text) => clipboard.writeText(String(text)));
+
+ipcMain.handle('app:info', () => ({
+  name: app.getName(),
+  version: app.getVersion(),
+  electron: process.versions.electron,
+  chrome: process.versions.chrome,
+  node: process.versions.node,
+}));
 
 ipcMain.handle('window:setTitle', (_e, t) => win && win.setTitle(t));

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>PluMd</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7a6bf5"/>
+      <stop offset="1" stop-color="#4536c4"/>
+    </linearGradient>
+    <linearGradient id="barrel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3490"/>
+      <stop offset="1" stop-color="#15123f"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/>
+      <stop offset="1" stop-color="#e0a92b"/>
+    </linearGradient>
+    <filter id="sh" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0b0830" flood-opacity=".35"/>
+    </filter>
+  </defs>
+
+  <!-- Fondo -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bg)"/>
+
+  <!-- Hoja con esquina doblada -->
+  <g filter="url(#sh)">
+    <path d="M100 76 H300 L352 128 V436 H100 Z" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
+  </g>
+  <path d="M300 76 V128 H352 Z" fill="#d9d5fb" stroke="#d9d5fb" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M130 152 H262 M130 176 H228" stroke="#dcd8fb" stroke-width="10" stroke-linecap="round" fill="none"/>
+
+  <!-- ".md" dibujado con trazos (no depende de ninguna tipografía) -->
+  <g transform="translate(130 195)" fill="none" stroke="#4536c4" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="8" cy="100" r="7.5" fill="#4536c4" stroke="none"/>
+    <path d="M42 100 V50 M42 66 C42 54 50 48 60 48 C71 48 77 56 77 68 V100 M77 68 C77 56 85 48 95 48 C106 48 112 56 112 68 V100"/>
+    <path d="M184 22 V100 M184 74 A26 26 0 1 1 132 74 A26 26 0 1 1 184 74"/>
+  </g>
+
+  <!-- Pluma estilográfica sobre la hoja -->
+  <g transform="translate(345 312) rotate(-40)" filter="url(#sh)">
+    <path d="M-130 0 L-90 -19 Q-80 0 -90 19 Z" fill="url(#gold)"/>
+    <path d="M-130 0 H-100" stroke="#15123f" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="-99" cy="0" r="3.6" fill="#15123f"/>
+    <path d="M-92 -17 L-50 -21 V21 L-92 17 Z" fill="#1d1950"/>
+    <rect x="-52" y="-24" width="8" height="48" rx="3" fill="url(#gold)"/>
+    <rect x="-44" y="-22" width="150" height="44" rx="16" fill="url(#barrel)"/>
+    <rect x="-30" y="-14" width="116" height="6" rx="3" fill="#fff" opacity=".22"/>
+    <path d="M20 -22 V-33 Q20 -38 26 -38 H90 Q98 -38 98 -31 V-22" fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="100" y="-24" width="32" height="48" rx="14" fill="#15123f"/>
+    <rect x="96" y="-24" width="8" height="48" rx="3" fill="url(#gold)"/>
+  </g>
+</svg>
