@@ -1,15 +1,23 @@
-Primera versión pública de PluMd: editor y visor de Markdown para Windows, con cinta de opciones tipo Word.
+PluMd 0.2.0: llegan los plugins, el menú "/" y los vínculos a carpetas.
 
 ## Descarga
 
-- `PluMd-portable-0.1.0.exe`: no necesita instalación. Descárgalo y ejecútalo con doble clic.
+- `PluMd-portable-0.2.0.exe`: no necesita instalación. Descárgalo y ejecútalo con doble clic.
 - `SHA256SUMS.txt`: suma de comprobación del `.exe`. El fichero lo compila GitHub a partir del código de este repositorio.
 
 ## Antes de ejecutarlo
 
 - Windows SmartScreen puede mostrar "Windows protegió su PC", porque el programa aún no está firmado. Pulsa "Más información" y luego "Ejecutar de todos modos".
 - El portable no registra los `.md` como suyos. Para abrirlos con doble clic, usa "Abrir con" sobre un `.md` una vez y elige PluMd.
-- Es una versión de trabajo (0.1.0): todavía no hay instalador, ni plugins, ni conexión MCP.
+- Es una versión de trabajo (0.2.0): todavía no hay conexión MCP ni catálogo de plugins.
+
+## Novedades
+
+- Sistema de plugins: aspectos, comandos, botones y grupos de cinta, paneles laterales, bloques de código con contenido propio, extensiones del editor y ajustes. Se gestionan en Ayuda > Administrar plugins. Guía en `docs/plugins/README.md` y tres ejemplos en `plugins-ejemplo/`.
+- Paleta de comandos (Ctrl+Mayús+P) y menú `/` en el editor para insertar títulos, listas, tablas y más.
+- Vínculos a carpetas locales o de red, además de páginas web. Ctrl+clic abre la carpeta en el Explorador.
+- El panel de carpetas aparece abierto por defecto, con cruz para cerrarlo y opción en Vista para volver a abrirlo.
+- Los diálogos se apilan y un texto entre corchetes sin enlace conserva los corchetes en modo Lectura.
 
 ## Qué incluye
 
