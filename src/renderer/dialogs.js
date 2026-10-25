@@ -1,11 +1,28 @@
 import { relativeTo } from './images.js';
+import { pathToFileUrl } from './commands.js';
 import { COLOR_ITEMS, colorOf, savedColors, setColor, resetColors } from './colors.js';
+
+// Los diálogos se apilan: si se abre uno encima de otro (p. ej. una confirmación sobre la pantalla de
+// plugins), el de debajo se guarda y reaparece al cerrar el de encima.
+function stash(host) {
+  if (!host.hidden && host.childNodes.length) (host._stack ||= []).push([...host.childNodes]);
+  host.textContent = '';
+}
+
+export function closeBox(host) {
+  host.textContent = '';
+  const prev = host._stack?.pop();
+  if (prev) {
+    host.append(...prev);
+    host.hidden = false;
+  } else host.hidden = true;
+}
 
 // Diálogo modal genérico. fields: [{ id, label, value, placeholder, browse }]
 // Devuelve { [id]: valor } | { remove: true } | null (cancelado).
 export function askForm({ title, fields, removable = false, okLabel = 'Aceptar' }) {
   const host = document.getElementById('dlg');
-  host.textContent = '';
+  stash(host);
   const form = document.createElement('form');
   const h = document.createElement('h3');
   h.textContent = title;
@@ -27,7 +44,7 @@ export function askForm({ title, fields, removable = false, okLabel = 'Aceptar' 
     if (f.browse) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = 'Examinar…';
+      b.textContent = f.browseLabel || 'Examinar…';
       b.addEventListener('click', async () => {
         const v = await f.browse();
         if (v) input.value = v;
@@ -63,12 +80,11 @@ export function askForm({ title, fields, removable = false, okLabel = 'Aceptar' 
 
   return new Promise((resolve) => {
     const done = (value) => {
-      host.hidden = true;
-      host.textContent = '';
+      closeBox(host);
       host.removeEventListener('keydown', onKey);
       resolve(value);
     };
-    const onKey = (e) => { if (e.key === 'Escape') done(null); };
+    const onKey = (e) => { if (e.key === 'Escape' && form.isConnected) done(null); };
     host.addEventListener('keydown', onKey);
     bCancel.addEventListener('click', () => done(null));
     if (bRemove) bRemove.addEventListener('click', () => done({ remove: true }));
@@ -89,7 +105,18 @@ export const askLink = ({ text = '', url = '', existing = false }) =>
     removable: existing,
     fields: [
       { id: 'text', label: 'Texto', value: text },
-      { id: 'url', label: 'Dirección', value: url, placeholder: 'https://…', required: true },
+      {
+        id: 'url',
+        label: 'Dirección web o carpeta',
+        value: url,
+        placeholder: 'https://…  o  C:\\carpeta  o  \\\\servidor\\recurso',
+        required: true,
+        browseLabel: 'Carpeta…',
+        browse: async () => {
+          const p = await window.api.pickFolder();
+          return p ? pathToFileUrl(p) : null;
+        },
+      },
     ],
   });
 
@@ -118,9 +145,9 @@ export const askImage = ({ alt = '', url = '', existing = false }, getFile) =>
 
 // ---- Utilidades de los cuadros de diálogo propios ----
 
-function openBox(cls) {
+export function openBox(cls) {
   const host = document.getElementById('dlg');
-  host.textContent = '';
+  stash(host);
   const box = document.createElement('div');
   box.className = `dlg-box ${cls}`;
   host.append(box);
@@ -128,7 +155,7 @@ function openBox(cls) {
   return { host, box };
 }
 
-function el(tag, cls, text) {
+export function el(tag, cls, text) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   if (text != null) e.textContent = text;
@@ -136,17 +163,16 @@ function el(tag, cls, text) {
 }
 
 // Cierra con Escape o clic fuera del cuadro. Devuelve una promesa que se resuelve al cerrar.
-function closable(host, box) {
+export function closable(host, box) {
   return new Promise((resolve) => {
     const done = () => {
-      host.hidden = true;
-      host.textContent = '';
+      closeBox(host);
       host.removeEventListener('keydown', onKey);
       host.removeEventListener('mousedown', onOut);
       resolve();
     };
-    const onKey = (e) => { if (e.key === 'Escape') done(); };
-    const onOut = (e) => { if (e.target === host) done(); };
+    const onKey = (e) => { if (e.key === 'Escape' && box.isConnected) done(); };
+    const onOut = (e) => { if (e.target === host && box.isConnected) done(); };
     host.addEventListener('keydown', onKey);
     host.addEventListener('mousedown', onOut);
     box.querySelector('[data-close]').addEventListener('click', done);
@@ -266,14 +292,13 @@ export function confirmBox({ title, message, okLabel = 'Aceptar', danger = false
   (danger ? cancel : ok).focus();
   return new Promise((resolve) => {
     const done = (v) => {
-      host.hidden = true;
-      host.textContent = '';
+      closeBox(host);
       host.removeEventListener('keydown', onKey);
       host.removeEventListener('mousedown', onOut);
       resolve(v);
     };
-    const onKey = (e) => { if (e.key === 'Escape') done(false); };
-    const onOut = (e) => { if (e.target === host) done(false); };
+    const onKey = (e) => { if (e.key === 'Escape' && box.isConnected) done(false); };
+    const onOut = (e) => { if (e.target === host && box.isConnected) done(false); };
     host.addEventListener('keydown', onKey);
     host.addEventListener('mousedown', onOut);
     cancel.addEventListener('click', () => done(false));

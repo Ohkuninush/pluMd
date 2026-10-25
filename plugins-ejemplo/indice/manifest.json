@@ -1,0 +1,32 @@
+{
+  "id": "indice",
+  "name": "Índice de títulos",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "author": "PluMd (ejemplo)",
+  "description": "Panel lateral con los títulos del documento. Un clic salta al título. Ejemplo de panel, comando, botón de cinta, barra de estado, eventos y ajustes.",
+  "main": "index.js",
+  "permissions": ["editor", "ui"],
+  "contributes": {
+    "commands": [
+      { "id": "indice.mostrar", "title": "Mostrar el índice de títulos" }
+    ],
+    "settings": {
+      "niveles": {
+        "type": "choice",
+        "label": "Niveles que se muestran",
+        "options": [
+          { "value": "2", "label": "Títulos 1 y 2" },
+          { "value": "3", "label": "Títulos 1 a 3" },
+          { "value": "6", "label": "Todos" }
+        ],
+        "default": "6"
+      },
+      "sangria": {
+        "type": "boolean",
+        "label": "Sangrar según el nivel",
+        "default": true
+      }
+    }
+  }
+}

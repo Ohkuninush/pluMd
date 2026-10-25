@@ -1,0 +1,13 @@
+{
+  "id": "sepia",
+  "name": "Sepia",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "author": "PluMd (ejemplo)",
+  "description": "Aspecto cálido con letra serif, pensado para leer documentos largos. Solo declara un skin: no tiene código.",
+  "contributes": {
+    "skins": [
+      { "id": "sepia", "name": "Sepia", "description": "Tonos cálidos y letra serif", "css": "sepia.css" }
+    ]
+  }
+}

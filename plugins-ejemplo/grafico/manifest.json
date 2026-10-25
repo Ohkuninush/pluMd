@@ -1,0 +1,15 @@
+{
+  "id": "grafico",
+  "name": "Gráfico de barras",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "author": "PluMd (ejemplo)",
+  "description": "Dibuja los bloques ```barras como un gráfico. Ejemplo de renderizador de bloques de código, comando y botón de cinta.",
+  "main": "index.js",
+  "permissions": ["editor"],
+  "contributes": {
+    "commands": [
+      { "id": "grafico.insertar", "title": "Insertar gráfico de barras" }
+    ]
+  }
+}

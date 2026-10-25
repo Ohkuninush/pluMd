@@ -319,3 +319,77 @@ body.resizing { cursor: col-resize; user-select: none; }
 button.danger { background: #c42b1c; color: #fff; border-color: #c42b1c; }
 .dlg-msg { margin: 0 0 12px; line-height: 1.5; }
 #dlg .dlg-confirm { width: 440px; }
+
+/* ---- Plugins ---- */
+.rb-svg svg { width: 100%; height: 100%; }
+
+/* Pestañas del panel lateral */
+#sb-tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--border); }
+.sb-tab { border: 0; border-bottom: 2px solid transparent; border-radius: var(--r-s) var(--r-s) 0 0; background: transparent; padding: 4px 10px 5px; color: var(--muted); }
+.sb-tab:hover { background: var(--bg-3); color: var(--text); }
+.sb-tab.active { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+#sb-files { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#sb-panels { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sb-panel { flex: 1; min-height: 0; overflow: auto; }
+
+/* Elementos de plugins en la barra de estado */
+.status-plugins { display: flex; align-items: center; gap: 12px; }
+.status-item { color: var(--muted); font: inherit; font-size: 12px; }
+button.status-item { border: 0; background: transparent; padding: 0 6px; border-radius: var(--r-s); cursor: pointer; }
+button.status-item:hover { background: var(--bg-3); color: var(--text); }
+
+/* Bloques que dibuja un plugin */
+.cm-block-widget { margin: 10px 0; border: 1px solid var(--border); border-radius: var(--r-l); background: var(--bg-2); overflow: hidden; }
+.cm-block-head { display: flex; align-items: center; justify-content: space-between; padding: 3px 10px; font-size: 11px; color: var(--muted); background: var(--bg-3); }
+.cm-block-head button { font-size: 11px; padding: 1px 8px; opacity: 0; transition: opacity .12s; }
+.cm-block-widget:hover .cm-block-head button, .cm-block-head button:focus { opacity: 1; }
+.cm-block-body { padding: 12px 14px; overflow: auto; }
+.cm-block-error { color: #c42b1c; font-size: .9em; }
+
+/* Diálogo de plugins */
+#dlg .dlg-plugins { width: 680px; }
+.plugin-alert { margin: 0 0 10px; padding: 8px 12px; background: var(--banner-bg); border: 1px solid var(--banner-border); border-radius: var(--r-m); }
+.plugin-list { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow: auto; margin-bottom: 10px; }
+.plugin-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-m); background: var(--bg-2); }
+.plugin-main { flex: 1; min-width: 0; }
+.plugin-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.plugin-ver { color: var(--muted); font-size: 12px; }
+.plugin-desc { margin-top: 3px; }
+.plugin-meta { margin-top: 3px; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.plugin-error { margin-top: 4px; font-size: 12px; color: #c42b1c; }
+.plugin-actions { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.plugin-empty { padding: 16px; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--r-m); }
+.plugin-empty p { margin: 0 0 6px; line-height: 1.5; }
+.chip { font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); }
+.chip.ok { color: #15803d; border-color: #15803d; }
+.chip.bad { color: #c42b1c; border-color: #c42b1c; }
+.chip.dev { color: var(--accent); border-color: var(--accent); }
+
+/* Ajustes de un plugin */
+#dlg .dlg-settings { width: 460px; }
+.set-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.set-label { color: var(--text); }
+.set-desc { font-size: 12px; color: var(--muted); }
+.set-row input[type=text], .set-row input[type=number], .set-row select { padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-s); }
+.set-row input[type=checkbox] { align-self: flex-start; width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* Paleta de comandos */
+#dlg:has(.dlg-palette) { align-items: flex-start; padding-top: 12vh; }
+#dlg .dlg-palette { width: 560px; padding: 10px; }
+.pal-input { width: 100%; padding: 9px 12px; font: inherit; font-size: 15px; color: var(--text); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-m); outline: 0; }
+.pal-input:focus { border-color: var(--accent); }
+.pal-list { margin-top: 8px; max-height: 50vh; overflow: auto; }
+.pal-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r-s); cursor: pointer; }
+.pal-row.sel, .pal-row:hover { background: var(--accent-soft); }
+.pal-title { flex: 1; }
+.pal-tag { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 7px; }
+.pal-row kbd { font: inherit; font-size: 11px; color: var(--muted); }
+.pal-empty { padding: 10px; color: var(--muted); }
+
+/* Menú "/" del editor (como en Obsidian) */
+.cm-tooltip.slash-menu { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-m); box-shadow: var(--shadow-pop); overflow: hidden; font-family: var(--font-ui); }
+.cm-tooltip.slash-menu > ul { font-family: inherit; max-height: 18em; min-width: 240px; }
+.cm-tooltip.slash-menu > ul > li { padding: 5px 12px; display: flex; gap: 8px; align-items: center; }
+.cm-tooltip.slash-menu > ul > li[aria-selected] { background: var(--accent-soft); color: var(--text); }
+.cm-tooltip.slash-menu .cm-completionDetail { margin-left: auto; font-style: normal; font-size: 11px; color: var(--accent); }
+.cm-tooltip.slash-menu .cm-completionIcon { display: none; }

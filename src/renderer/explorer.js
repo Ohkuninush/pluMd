@@ -1,4 +1,5 @@
 import { icon } from './icons.js';
+import { contextItems } from './plugins/registry.js';
 
 // Panel de carpetas: árbol de documentos Markdown con menú contextual.
 // Todas las operaciones de disco pasan por el proceso principal (src/main/fsops.js), que solo actúa
@@ -228,6 +229,8 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
     } else {
       showEmpty();
     }
+    // Por defecto el panel aparece abierto; solo se oculta si el usuario lo cerró.
+    if (store.get('sb:open') !== '0') setVisible(true);
   }
 
   function showEmpty(text) {
@@ -483,6 +486,12 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
         title: rootNet ? 'En unidades de red no se puede borrar desde PluMd' : '',
         run: () => remove(node),
       });
+    }
+    // Entradas aportadas por plugins (api.ui.contextMenu.add con target 'explorer-file' o 'explorer-folder').
+    const extra = node ? contextItems(isDir ? 'explorer-folder' : 'explorer-file') : [];
+    if (extra.length) {
+      items.push('-');
+      for (const ci of extra) items.push({ label: ci.label, icon: 'puzzle', run: () => ci.run({ path: node.dataset.path, isDir }) });
     }
     items.push('-');
     items.push({ label: 'Actualizar', icon: 'refresh', run: () => (isDir ? refreshDir(node.dataset.path) : refresh()) });

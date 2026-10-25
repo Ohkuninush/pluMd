@@ -167,8 +167,16 @@ export function linkAt(state, pos) {
 
 // Añade https:// si falta el esquema; deja intactas rutas relativas y anclas.
 export function normalizeUrl(u) {
+  if (/^[a-z]:[\\/]/i.test(u) || u.startsWith('\\\\')) return pathToFileUrl(u); // C:\carpeta o \\servidor\recurso
   if (/^[a-z][a-z0-9+.-]*:/i.test(u) || /^[.\/#\\]/.test(u)) return u;
   return 'https://' + u;
+}
+
+// Ruta de Windows a dirección file:// (las rutas de red \\servidor\recurso quedan como file://servidor/recurso).
+export function pathToFileUrl(p) {
+  const s = p.replace(/\\/g, '/').replace(/%(?![0-9a-f]{2})/gi, '%25');
+  const enc = encodeURI(s).replace(/#/g, '%23').replace(/\?/g, '%3F');
+  return s.startsWith('//') ? `file:${enc}` : `file:///${enc}`;
 }
 
 const encodeUrl = (u) => u.replace(/ /g, '%20').replace(/\(/g, '%28').replace(/\)/g, '%29');

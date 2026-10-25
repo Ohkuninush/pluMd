@@ -1,7 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, protocol, net } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { createFsOps } = require('./fsops');
+const { createPlugins, registerScheme } = require('./plugins');
+
+// El esquema plumd-plugin:// (ficheros de los plugins) debe registrarse antes de que la app esté lista.
+registerScheme(protocol);
 
 // Un único proceso: un doble clic con la app abierta abre el fichero en la ventana existente.
 const gotLock = app.requestSingleInstanceLock();
@@ -75,7 +79,11 @@ app.on('open-file', (e, f) => {
   sendOpen(f);
 });
 
+let plugins = null;
+
 app.whenReady().then(() => {
+  plugins = createPlugins({ userDataDir: app.getPath('userData'), argv: process.argv });
+  plugins.installProtocol(protocol, net);
   pendingFile = fileFromArgs(process.argv);
   createWindow();
 });
@@ -164,6 +172,29 @@ ipcMain.handle('shell:openExternal', async (_e, url) => {
   }
 });
 
+// Vínculos locales (file:// o ruta relativa): una carpeta se abre en el Explorador; un fichero solo
+// se devuelve al renderer, que decide (únicamente abre Markdown). Nunca se ejecuta ni se borra nada.
+ipcMain.handle('shell:openLocal', async (_e, url, baseDir) => {
+  let p;
+  try {
+    if (/^file:/i.test(url)) p = require('url').fileURLToPath(url);
+    else if (baseDir) p = path.resolve(baseDir, decodeURI(url));
+    else return { kind: 'missing', path: url };
+  } catch {
+    return { kind: 'missing', path: url };
+  }
+  try {
+    const st = await fs.promises.stat(p);
+    if (st.isDirectory()) {
+      const err = await shell.openPath(p);
+      return err ? { kind: 'missing', path: p } : { kind: 'dir', path: p };
+    }
+    return { kind: 'file', path: p };
+  } catch {
+    return { kind: 'missing', path: p };
+  }
+});
+
 ipcMain.handle('file:pickImage', async () => {
   const r = await dialog.showOpenDialog(win, {
     properties: ['openFile'],
@@ -182,5 +213,19 @@ ipcMain.handle('app:info', () => ({
   chrome: process.versions.chrome,
   node: process.versions.node,
 }));
+
+// ---- IPC: plugins ----
+ipcMain.handle('plugins:list', () => plugins.list());
+ipcMain.handle('plugins:setEnabled', (_e, id, on, consentVersion) => plugins.setEnabled(id, on, consentVersion));
+ipcMain.handle('plugins:failure', (_e, id) => plugins.recordFailure(id));
+ipcMain.handle('plugins:markLoading', (_e, v) => plugins.markLoading(v));
+ipcMain.handle('plugins:dataGet', (_e, id) => plugins.dataGet(id));
+ipcMain.handle('plugins:dataSet', (_e, id, obj) => plugins.dataSet(id, obj));
+ipcMain.handle('plugins:openFolder', () => shell.openPath(plugins.dir));
+ipcMain.handle('plugins:install', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Elige la carpeta del plugin', properties: ['openDirectory'] });
+  if (r.canceled) return { ok: false, canceled: true };
+  return plugins.install(r.filePaths[0]);
+});
 
 ipcMain.handle('window:setTitle', (_e, t) => win && win.setTitle(t));

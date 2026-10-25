@@ -1,0 +1,39 @@
+/* Skin "Sepia". Un skin redefine los tokens de PluMd (--bg, --text, --accent, --r-*, --font-*...) solo cuando
+   data-skin vale su id. Hay un bloque para el modo claro y otro para el oscuro. */
+
+:root[data-skin='sepia'] {
+  --font-text: Georgia, 'Times New Roman', serif;
+  --r-s: 3px;
+  --r-m: 4px;
+  --r-l: 8px;
+
+  --bg: #f6efe0;
+  --bg-2: #efe6d2;
+  --bg-3: #e5d9be;
+  --border: #d6c8a8;
+  --text: #3b2f1e;
+  --muted: #7a6a4f;
+  --accent: #9a5b1b;
+  --accent-soft: #ecd9b8;
+  --code-bg: #ece2cb;
+  --selection: #e3c88f;
+  --on-accent: #ffffff;
+}
+
+:root[data-skin='sepia'][data-theme='dark'] {
+  --bg: #262017;
+  --bg-2: #2f281d;
+  --bg-3: #3a3124;
+  --border: #4a3f2e;
+  --text: #e8dcc4;
+  --muted: #a8977a;
+  --accent: #d9a45b;
+  --accent-soft: #4a3a20;
+  --code-bg: #332b1e;
+  --selection: #5a4520;
+  --on-accent: #1c160c;
+}
+
+/* Un skin también puede ajustar formas concretas: aquí, los títulos con más aire. */
+:root[data-skin='sepia'] .cm-lp-h1,
+:root[data-skin='sepia'] .cm-lp-h2 { letter-spacing: .01em; }

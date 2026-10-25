@@ -8,22 +8,31 @@ import { tableField } from './tables.js';
 import { codeLanguages, codeHighlight } from './highlight.js';
 import { headingFolding, foldKeymap, foldAllHeadings, expandAll } from './folding.js';
 import { setScope } from './colors.js';
-import { applySkin, listSkins, getSkin } from './skins.js';
+import { applySkin, listSkins, getSkin, hasSkin } from './skins.js';
 import { setBaseDir, dirname } from './images.js';
 import {
   toggleWrap, setParagraphStyle, toggleList, toggleTaskList, changeIndent, insertRule, insertCodeBlock, exitCodeBlock,
   insertComment, insertFrontmatter, clearFormat, paragraphEnter, softBreak, exitEmptyListItem, clipCopy, clipPaste, formatState,
   insertTable, insertLink, insertImage, linkAt, normalizeUrl,
 } from './commands.js';
-import { askLink, askImage, openColors, showAbout, confirmBox, REPO_URL } from './dialogs.js';
+import { askLink, askImage, askForm, openColors, showAbout, confirmBox, REPO_URL } from './dialogs.js';
 import { createRibbon } from './ribbon.js';
 import { createExplorer } from './explorer.js';
+import { on, emit, items, removeItem, reportError, registerCommand, getCommand, executeCommand } from './plugins/registry.js';
+import { blockField, refreshBlocks } from './plugins/blockRenderers.js';
+import { initPlugins, startPlugins, reloadPlugins, failedCount } from './plugins/loader.js';
+import { openPluginsDialog, openPalette } from './plugins/ui.js';
+import { initSidebarPanels } from './plugins/sidebar.js';
+import { initStatusItems } from './plugins/statusbar.js';
+import { slashMenu } from './slashMenu.js';
 
 const $ = (id) => document.getElementById(id);
 const scroller = () => document.querySelector('main');
 
 const state = { mode: 'read', zoom: 100 };
 const modeCompartment = new Compartment();
+const pluginCompartment = new Compartment(); // extensiones de CodeMirror que aportan los plugins
+const pluginExtensions = () => items('extensions').map((e) => e.ext);
 let ribbon = null;
 let explorer = null;
 
@@ -37,7 +46,7 @@ let untitledCount = 0;
 // Lectura: documento limpio (marcas ocultas), editable como en un procesador de textos.
 // Código: el Markdown tal cual.
 const modeExtensions = (mode) =>
-  mode === 'read' ? [livePreview({ reveal: false }), tableField] : [lineNumbers()];
+  mode === 'read' ? [livePreview({ reveal: false }), tableField, blockField] : [lineNumbers()];
 
 // Ctrl+clic sobre un enlace lo abre en el navegador.
 const linkClicks = EditorView.domEventHandlers({
@@ -46,10 +55,23 @@ const linkClicks = EditorView.domEventHandlers({
     const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
     const l = pos == null ? null : linkAt(v.state, pos);
     if (!l) return false;
-    window.api.openExternal(normalizeUrl(l.url));
+    openLink(l.url);
     return true;
   },
 });
+
+// Web y correo van al navegador; una carpeta se abre en el Explorador; un .md se abre en una pestaña.
+async function openLink(url) {
+  const u = normalizeUrl(url);
+  if (/^(https?|mailto):/i.test(u)) return window.api.openExternal(u);
+  if (u.startsWith('#')) return;
+  const r = await window.api.openLocal(u, cur && cur.file ? dirname(cur.file) : null);
+  if (r.kind === 'missing') toast(`No existe: ${r.path || url}`);
+  else if (r.kind === 'file') {
+    if (MD_RE.test(r.path)) openFile(r.path);
+    else toast('Solo se abren carpetas y documentos Markdown desde un vínculo.');
+  }
+}
 
 function endKey(v, extend) {
   const sel = v.state.selection.main;
@@ -69,6 +91,13 @@ function updateCount(s) {
   }, 200);
 }
 
+// Aviso de cambio de documento para los plugins, agrupado para no saturarlos al escribir.
+let changedTimer = null;
+function scheduleChanged() {
+  clearTimeout(changedTimer);
+  changedTimer = setTimeout(() => emit('document:changed', { path: cur?.file || null }), 300);
+}
+
 const baseExtensions = [
   history(),
   drawSelection(),
@@ -77,6 +106,7 @@ const baseExtensions = [
   markdown({ base: markdownLanguage, codeLanguages }),
   codeHighlight,
   headingFolding,
+  slashMenu(),
   // Con las marcas de formato ocultas, Fin e Intro dejan el cursor fuera del formato: así un Intro
   // al final de un texto en negrita no parte la negrita entre dos párrafos.
   Prec.highest(keymap.of([
@@ -111,11 +141,13 @@ const baseExtensions = [
   ]),
   linkClicks,
   modeCompartment.of(modeExtensions(state.mode)),
+  pluginCompartment.of(pluginExtensions()),
   EditorView.updateListener.of((u) => {
     if (u.docChanged && cur) {
       if (!cur.dirty) { cur.dirty = true; renderTabs(); }
       updateTitle();
       updateCount(u.state);
+      scheduleChanged();
     }
     if ((u.docChanged || u.selectionSet) && ribbon) ribbon.update(formatState(u.state));
   }),
@@ -147,8 +179,9 @@ function updateTitle() {
   window.api.setTitle(`${cur.dirty ? '● ' : ''}${docName(cur)} — PluMd`);
 }
 
-function showBanner(text, actions = []) {
+function showBanner(text, actions = [], sticky = false) {
   const b = $('banner');
+  b.dataset.sticky = sticky ? '1' : '';
   b.innerHTML = '';
   b.append(text + ' ');
   for (const [label, fn] of actions) {
@@ -206,8 +239,9 @@ function activate(doc) {
   setBaseDir(doc.file ? dirname(doc.file) : null);
   view.setState(doc.state);
   view.dispatch({ effects: modeCompartment.reconfigure(modeExtensions(state.mode)) });
+  applyPluginExtensions();
   $('editor').classList.toggle('source', state.mode === 'source');
-  $('banner').hidden = true;
+  if (!$('banner').dataset.sticky) $('banner').hidden = true;
   renderTabs();
   updateTitle();
   updateCount(view.state);
@@ -215,6 +249,34 @@ function activate(doc) {
   explorer?.setActive(doc.file);
   requestAnimationFrame(() => { scroller().scrollTop = doc.scroll; });
   view.focus();
+  emit('document:activated', { path: doc.file || null });
+}
+
+// Aplica las extensiones de CodeMirror de los plugins activos al documento visible. Si alguna no es
+// válida, se identifica de qué plugin es, se retira y se le cuenta como fallo, en lugar de dejar el
+// editor roto o quitar las extensiones de los demás plugins.
+function applyPluginExtensions() {
+  const apply = () => view.dispatch({ effects: [pluginCompartment.reconfigure(pluginExtensions()), refreshBlocks.of(null)] });
+  try {
+    apply();
+    return;
+  } catch (e) {
+    console.error('[plugins] extensión de editor no válida', e);
+  }
+  for (const entry of [...items('extensions')]) {
+    try {
+      EditorState.create({ extensions: [entry.ext] });
+    } catch (err) {
+      removeItem('extensions', entry);
+      reportError(entry.owner, new Error(`Aportó una extensión del editor no válida (${err.message})`));
+    }
+  }
+  try {
+    apply();
+  } catch {
+    try { view.dispatch({ effects: [pluginCompartment.reconfigure([]), refreshBlocks.of(null)] }); } catch { /* sin extensiones */ }
+    toast('Las extensiones de los plugins no son válidas y se han retirado. Revisa Ayuda > Administrar plugins.');
+  }
 }
 
 function newDoc() {
@@ -227,6 +289,7 @@ function closeDoc(d) {
   if (d.dirty && !confirm(`«${docName(d)}» tiene cambios sin guardar. ¿Cerrar sin guardar?`)) return;
   const i = docs.indexOf(d);
   docs.splice(i, 1);
+  emit('document:closed', { path: d.file || null });
   if (!docs.length) return newDoc();
   if (d === cur) activate(docs[Math.min(i, docs.length - 1)]);
   else renderTabs();
@@ -245,6 +308,7 @@ async function openFile(path) {
     else docs.push(doc);
     if (pristine) cur = null;
     activate(doc);
+    emit('document:opened', { path: doc.file });
   } catch (e) {
     showBanner(`No se pudo abrir el fichero: ${e.message}`);
   }
@@ -266,6 +330,7 @@ async function save(force = false) {
   d.dirty = false;
   renderTabs();
   if (d === cur) updateTitle();
+  emit('document:saved', { path: d.file });
 }
 
 async function saveAs() {
@@ -289,6 +354,7 @@ function setMode(mode) {
   $('editor').classList.toggle('source', mode === 'source');
   ribbon.setActive({ 'mode-read': mode === 'read', 'mode-source': mode === 'source' });
   view.focus();
+  emit('mode:changed', { mode });
 }
 
 // Aspecto = skin (forma) x modo (claro/oscuro). Los colores personalizados son de cada combinación.
@@ -300,6 +366,9 @@ function refreshAppearance() {
   const active = { 'theme-light': theme === 'light', 'theme-dark': theme === 'dark' };
   for (const k of listSkins()) active[`skin-${k.id}`] = k.id === skin;
   ribbon.setActive(active);
+  // Los bloques que dibujan los plugins se repintan con el aspecto nuevo.
+  view.dispatch({ effects: refreshBlocks.of(null) });
+  emit('theme:changed', { skin, theme });
 }
 function chooseTheme(t) {
   document.documentElement.dataset.theme = t;
@@ -379,21 +448,53 @@ const commands = {
   'unfold-all': (v) => (expandAll(v), v.focus()),
   colors: () => openColors(appearanceLabel()),
 };
+Object.assign(commands, {
+  plugins: () => openPluginsDialog(pluginHost),
+  'plugins-folder': () => window.api.pluginsOpenFolder(),
+  'plugins-reload': async () => {
+    await reloadPlugins();
+    toast('Plugins recargados.');
+  },
+  palette: () => openPalette(ribbon.entries()),
+});
 for (const k of listSkins()) commands[`skin-${k.id}`] = () => chooseSkin(k.id);
 for (const n of [1, 2, 3, 4, 5, 6]) commands[`style-h${n}`] = (v) => setParagraphStyle(v, `h${n}`);
 commands['style-normal'] = (v) => setParagraphStyle(v, 'normal');
 commands['style-quote'] = (v) => setParagraphStyle(v, 'quote');
 
-ribbon = createRibbon({ run: (cmd, arg) => commands[cmd]?.(view, arg) });
+// Los comandos del núcleo viven en el mismo registro que los de los plugins.
+for (const [id, fn] of Object.entries(commands)) registerCommand({ id, run: (arg) => fn(view, arg) });
+function syncSkinCommands() {
+  for (const k of listSkins()) if (!getCommand(`skin-${k.id}`)) registerCommand({ id: `skin-${k.id}`, run: () => chooseSkin(k.id) });
+}
+
+ribbon = createRibbon({ run: (cmd, arg) => { executeCommand(cmd, arg).catch((e) => console.error(e)); } });
+on('registry:ribbon', () => ribbon.setContributions(items('ribbon')));
+// Un plugin puede añadir o quitar skins: la cinta (grupo Aspecto) y los comandos se actualizan.
+on('registry:skins', () => {
+  syncSkinCommands();
+  ribbon.setContributions(items('ribbon'));
+  refreshAppearance();
+});
+on('panel:show', () => explorer?.show());
+on('registry:extensions', applyPluginExtensions);
+on('registry:blocks', () => view.dispatch({ effects: refreshBlocks.of(null) }));
+initSidebarPanels();
+initStatusItems();
 ribbon.update(formatState(view.state));
 
 // ---- Panel de carpetas ----
 const sameFile = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 let bannerTimer = null;
-function toast(text) {
-  showBanner(text);
+function toast(text, sticky = false) {
+  showBanner(text, [], sticky);
   clearTimeout(bannerTimer);
-  bannerTimer = setTimeout(() => { if ($('banner').textContent.startsWith(text)) $('banner').hidden = true; }, 8000);
+  bannerTimer = setTimeout(() => {
+    if ($('banner').textContent.startsWith(text)) {
+      $('banner').hidden = true;
+      $('banner').dataset.sticky = '';
+    }
+  }, sticky ? 14000 : 8000);
 }
 
 explorer = createExplorer({
@@ -426,12 +527,47 @@ explorer = createExplorer({
 });
 explorer.restore();
 
+// Lo que la aplicación ofrece a los plugins (ver src/renderer/plugins/api.js).
+const pluginHost = {
+  version: '',
+  getView: () => view,
+  getActive: () => cur,
+  getMode: () => state.mode,
+  docName,
+  listDocs: () => docs.map((d) => ({ path: d.file || null, name: docName(d), dirty: !!d.dirty, active: d === cur })),
+  openFile,
+  notify: (text) => toast(text, true),
+  confirm: confirmBox,
+  prompt: async ({ title = 'Escribe un valor', label = '', value = '' } = {}) => {
+    const r = await askForm({ title, fields: [{ id: 'v', label, value, required: true }] });
+    return r ? r.v : null;
+  },
+  explorerRoot: () => explorer.getRoot(),
+};
+
 // early.js ya fijó el tema y el skin guardados antes de pintar; aquí solo se sincronizan colores y cinta.
 refreshAppearance();
 setMode('read');
 setZoom(100);
 renderTabs();
 updateTitle();
+
+// Plugins: se cargan al final, cuando la interfaz ya está lista. Si fallan, la aplicación sigue funcionando.
+(async () => {
+  try {
+    pluginHost.version = (await window.api.appInfo()).version;
+    initPlugins(pluginHost);
+    await startPlugins();
+    if (failedCount()) toast(`${failedCount()} ${failedCount() === 1 ? 'plugin no se ha podido cargar' : 'plugins no se han podido cargar'}. Revisa Ayuda > Administrar plugins.`, true);
+    let savedSkin = null;
+    try { savedSkin = localStorage.getItem('skin'); } catch { /* sin almacenamiento */ }
+    // Un skin de plugin no existe al arrancar: se aplica ahora que ya está registrado.
+    if (savedSkin && hasSkin(savedSkin) && document.documentElement.dataset.skin !== savedSkin) await chooseSkin(savedSkin);
+    emit('app:ready');
+  } catch (e) {
+    console.error('[plugins] error al iniciar', e);
+  }
+})();
 
 $('zoom').addEventListener('input', (e) => setZoom(+e.target.value));
 window.addEventListener('wheel', (e) => {
@@ -497,6 +633,7 @@ window.addEventListener('keydown', async (e) => {
     const i = docs.indexOf(cur);
     activate(docs[(i + (e.shiftKey ? docs.length - 1 : 1)) % docs.length]);
   }
+  else if (k === 'p' && e.shiftKey) { e.preventDefault(); commands.palette(); }
   else if (k === 'e' && e.shiftKey) { e.preventDefault(); explorer.toggle(); }
   else if (k === 'o' && e.shiftKey) { e.preventDefault(); explorer.openFolderDialog(); }
   else if (k === 'e') { e.preventDefault(); setMode(state.mode === 'read' ? 'source' : 'read'); }
