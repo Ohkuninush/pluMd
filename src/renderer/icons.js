@@ -39,6 +39,7 @@ export const ICONS = {
   zoomout: P('M11 4a7 7 0 100 14 7 7 0 000-14z M21 21l-4.5-4.5 M8 11h6'),
   chevron: P('M6 9l6 6 6-6'),
   chevronup: P('M6 15l6-6 6 6'),
+  close: P('M6 6l12 12 M18 6L6 18'),
   palette: P('M12 3a9 9 0 100 18c1.2 0 2-.8 2-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 004-4c0-4-4-8-9-8z M7.5 11h.01 M10 7.5h.01 M14.5 7.5h.01'),
   skinpl: P('M5 4h11l3 3v13H5z M16 4v3h3 M8 15l5-5 2 2-5 5H8z'),
   skinwin: P('M4 5l7-1v7H4z M13 3.8L20 3v8h-7z M4 13h7v7l-7-1z M13 13h7v8l-7-1z'),
@@ -53,6 +54,7 @@ export const ICONS = {
   sidebar: P('M3 4h18v16H3z M9 4v16'),
   paste2: P('M9 4h6v3H9z M7 5.5H5v15h14v-15h-2 M12 11v6 M9 14h6'),
   reveal: P('M3 6h6l2 2h10v11H3z M12 13h5 M14.5 10.5L17 13l-2.5 2.5'),
+  puzzle: P('M10 4a2 2 0 114 0v1h4v4h-1a2 2 0 100 4h1v4h-4v-1a2 2 0 10-4 0v1H6v-4H5a2 2 0 110-4h1V5h4z'),
   info: P('M12 3a9 9 0 100 18 9 9 0 000-18z M12 11v6 M12 7.5h.01'),
   saveas: P('M5 3h11l3 3v6 M5 3v18h7 M8 3v6h7V3 M15 19l2 2 4-5'),
 };

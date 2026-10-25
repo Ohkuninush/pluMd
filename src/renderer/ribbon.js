@@ -17,7 +17,7 @@ const STYLES = [
   ['h4', 'Título 4'], ['h5', 'Título 5'], ['h6', 'Título 6'], ['quote', 'Cita'],
 ];
 
-const TABS = [
+const builtinTabs = () => [
   {
     id: 'home',
     groups: [
@@ -66,16 +66,20 @@ const TABS = [
   {
     id: 'help',
     groups: [
-      grp('Información', lg('about', 'Acerca de', 'info', 'Versión, autor y licencia'), lg('repo', 'Proyecto en GitHub', 'link', 'Abrir el repositorio en GitHub')),
+      grp('Información', lg('about', 'Acerca de', 'info', 'Versión, autor y licencia'), lg('repo', 'Proyecto en GitHub', 'link', 'Abrir el repositorio en GitHub'), lg('palette', 'Paleta de comandos', 'search', 'Buscar y ejecutar cualquier comando (Ctrl+Mayús+P)')),
+      grp('Plugins', lg('plugins', 'Administrar plugins', 'puzzle', 'Ver, activar y desactivar plugins'), lg('plugins-folder', 'Carpeta de plugins', 'folder', 'Abrir la carpeta donde se instalan los plugins'), lg('plugins-reload', 'Recargar plugins', 'refresh', 'Volver a leer y cargar los plugins')),
     ],
   },
 ];
+
+// Botón aportado por un plugin: { command, label, title?, size?, icon? (nombre de un icono de PluMd), svg? (código SVG) }
+const plugItem = (it) => ({ t: 'btn', size: it.size || 'lg', cmd: it.command, label: it.label, icon: it.icon, svg: it.svg, title: it.title || it.label });
 
 function btnHtml(i) {
   const size = i.size === 'lg' ? 28 : 16;
   const label = i.label && i.size !== 'ic' ? `<span class="rb-label">${esc(i.label)}</span>` : '';
   const dd = i.cmd === 'table' ? icon('chevron', 10) : '';
-  return `<button type="button" class="rb rb-${i.size} ${i.cls || ''}" data-cmd="${i.cmd}"${i.state ? ` data-state="${i.state}"` : ''} title="${esc(i.title || i.label || '')}">${i.icon ? icon(i.icon, size) : ''}${i.html ? `<span>${i.html}</span>` : ''}${label}${dd}</button>`;
+  return `<button type="button" class="rb rb-${i.size} ${i.cls || ''}" data-cmd="${i.cmd}"${i.state ? ` data-state="${i.state}"` : ''} title="${esc(i.title || i.label || '')}">${i.icon ? icon(i.icon, size) : ''}${i.svg ? `<span class="rb-svg" style="display:flex;width:${size}px;height:${size}px">${i.svg}</span>` : ''}${i.html ? `<span>${i.html}</span>` : ''}${label}${dd}</button>`;
 }
 
 function itemHtml(it) {
@@ -94,17 +98,37 @@ const groupHtml = (g) => `<div class="grp"><div class="grp-body">${g.items.map(i
 
 export function createRibbon({ run }) {
   const panels = document.getElementById('panels');
-  panels.innerHTML = TABS.map((t) => `<div class="panel" id="panel-${t.id}" ${t.id === 'home' ? '' : 'hidden'}>${t.groups.map(groupHtml).join('')}</div>`).join('');
-  hydrateIcons(document);
+  const tabsBar = document.getElementById('tabs');
 
   let current = {};
   let collapsed = false;
+  let activeTab = 'home';
+  let contributions = []; // aportaciones de plugins (registro "ribbon")
+  let tabsData = [];
+
+  const computeTabs = () => {
+    const tabs = builtinTabs();
+    for (const c of contributions) {
+      if (c.kind === 'group') {
+        const t = tabs.find((x) => x.id === c.tab);
+        if (t) t.groups.push({ label: c.label || '', items: (c.items || []).map(plugItem) });
+      } else if (c.kind === 'tab' && !tabs.some((x) => x.id === c.id)) {
+        tabs.push({ id: c.id, label: c.label, plugin: true, groups: (c.groups || []).map((g) => ({ label: g.label || '', items: (g.items || []).map(plugItem) })) });
+      }
+    }
+    return tabs;
+  };
 
   // ---- Pestañas ----
-  const tabs = [...document.querySelectorAll('#tabs [data-tab]')];
+  const tabButtons = () => [...document.querySelectorAll('#tabs [data-tab]')];
   function showTab(id) {
-    tabs.forEach((b) => b.classList.toggle('active', b.dataset.tab === id));
-    TABS.forEach((t) => (document.getElementById(`panel-${t.id}`).hidden = t.id !== id));
+    if (!tabsData.some((t) => t.id === id)) id = 'home';
+    activeTab = id;
+    tabButtons().forEach((b) => b.classList.toggle('active', b.dataset.tab === id));
+    tabsData.forEach((t) => {
+      const p = document.getElementById(`panel-${t.id}`);
+      if (p) p.hidden = t.id !== id;
+    });
     setCollapsed(false);
   }
   function setCollapsed(v) {
@@ -114,17 +138,41 @@ export function createRibbon({ run }) {
     if (b) b.title = v ? 'Expandir la cinta' : 'Contraer la cinta';
     document.body.classList.toggle('ribbon-collapsed', v);
   }
-  tabs.forEach((b) => {
+  const wireTab = (b) => {
     b.addEventListener('click', () => showTab(b.dataset.tab));
     b.addEventListener('dblclick', () => setCollapsed(!collapsed));
-  });
+  };
+  tabButtons().forEach(wireTab);
+
+  // Reconstruye los paneles (y las pestañas de plugins) con lo que haya registrado en este momento.
+  function render() {
+    tabsData = computeTabs();
+    panels.innerHTML = tabsData.map((t) => `<div class="panel" id="panel-${t.id}" hidden>${t.groups.map(groupHtml).join('')}</div>`).join('');
+    hydrateIcons(document);
+    tabsBar.querySelectorAll('[data-plugin-tab]').forEach((b) => b.remove());
+    const spacer = tabsBar.querySelector('.spacer');
+    for (const t of tabsData.filter((x) => x.plugin)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab';
+      b.dataset.tab = t.id;
+      b.dataset.pluginTab = '1';
+      b.textContent = t.label;
+      wireTab(b);
+      tabsBar.insertBefore(b, spacer);
+    }
+    const wasCollapsed = collapsed;
+    showTab(activeTab);
+    setCollapsed(wasCollapsed);
+    apply();
+  }
 
   // ---- Popups: menú Archivo y selector de tabla ----
   const fileMenu = document.createElement('div');
   fileMenu.className = 'popup menu';
   fileMenu.hidden = true;
   fileMenu.innerHTML = [
-    ['new', 'Nuevo   Ctrl+N', 'filecode'], ['open', 'Abrir…   Ctrl+O', 'open'], ['open-folder', 'Abrir carpeta…   Ctrl+Mayús+O', 'folder'], ['save', 'Guardar   Ctrl+S', 'save'], ['saveas', 'Guardar como…', 'saveas'], ['close', 'Cerrar documento   Ctrl+W', 'open'], ['about', 'Acerca de…', 'info'],
+    ['new', 'Nuevo   Ctrl+N', 'filecode'], ['open', 'Abrir…   Ctrl+O', 'open'], ['open-folder', 'Abrir carpeta…   Ctrl+Mayús+O', 'folder'], ['save', 'Guardar   Ctrl+S', 'save'], ['saveas', 'Guardar como…', 'saveas'], ['close', 'Cerrar documento   Ctrl+W', 'open'], ['plugins', 'Plugins…', 'puzzle'], ['palette', 'Paleta de comandos   Ctrl+Mayús+P', 'search'], ['about', 'Acerca de…', 'info'],
   ].map(([c, l, i]) => `<button type="button" data-cmd="${c}">${icon(i, 16)}<span>${l}</span></button>`).join('');
   document.body.append(fileMenu);
 
@@ -192,8 +240,29 @@ export function createRibbon({ run }) {
     document.querySelectorAll('[data-state]').forEach((b) => b.classList.toggle('active', !!current[b.dataset.state]));
   }
 
+  // Botones con título (del núcleo y de plugins), para la paleta de comandos.
+  const entries = () => {
+    const out = [];
+    const seen = new Set();
+    const visit = (it) => {
+      if (it.t === 'btn' && it.cmd && it.title && !seen.has(it.cmd) && !['table', 'file-menu', 'ribbon-toggle'].includes(it.cmd)) {
+        seen.add(it.cmd);
+        out.push({ id: it.cmd, title: it.title });
+      } else if (it.t === 'stack') it.rows.forEach((r) => r.forEach(visit));
+    };
+    tabsData.forEach((t) => t.groups.forEach((g) => g.items.forEach(visit)));
+    return out;
+  };
+
+  render();
+
   return {
     showTab,
+    entries,
+    setContributions(list) {
+      contributions = list;
+      render();
+    },
     // f: resultado de formatState(); extra: estados adicionales (modo, tema…)
     update(f) {
       const next = { ...current };

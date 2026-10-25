@@ -18,12 +18,13 @@ Ve a la página de [versiones](https://github.com/jfr1504/pluMd/releases/latest)
 
 - Abre un fichero `.md` suelto (doble clic, botón Abrir o Ctrl+O). No necesita carpeta de trabajo.
 - Dos vistas: Lectura (documento limpio y editable, sin símbolos Markdown) y Código (el Markdown tal cual). Ctrl+E alterna.
-- Cinta de opciones a todo el ancho, con pestañas Inicio, Insertar, Vista y Ayuda: estilos de título, negrita, cursiva, subrayado, listas, tareas, tablas editables, imágenes, vínculos, bloques de código con resaltado, búsqueda y zoom.
+- Cinta de opciones a todo el ancho, con pestañas Inicio, Insertar, Vista y Ayuda: estilos de título, negrita, cursiva, subrayado, listas, tareas, tablas editables, imágenes, vínculos (a páginas web o a carpetas, incluidas las de red), bloques de código con resaltado, búsqueda y zoom. Al escribir `/` en el editor se abre un menú de comandos para insertar títulos, listas, tablas y más.
 - Varios documentos a la vez en pestañas. Se abren con Abrir, con doble clic o arrastrando los `.md` sobre la ventana.
-- Panel de carpetas a la izquierda (Archivo > Abrir carpeta, o arrastrando una carpeta): muestra los `.md`, `.markdown` y `.txt`, se abren en pestaña con un clic y se recuerda la última carpeta. Con el botón derecho: nuevo documento, renombrar, copiar, pegar y borrar. Borrar envía a la Papelera con confirmación y está desactivado en unidades de red; nada se sobrescribe y solo se actúa dentro de la carpeta abierta.
+- Panel de carpetas a la izquierda, abierto por defecto (se cierra con la cruz y se vuelve a abrir desde Vista) (Archivo > Abrir carpeta, o arrastrando una carpeta): muestra los `.md`, `.markdown` y `.txt`, se abren en pestaña con un clic y se recuerda la última carpeta. Con el botón derecho: nuevo documento, renombrar, copiar, pegar y borrar. Borrar envía a la Papelera con confirmación y está desactivado en unidades de red; nada se sobrescribe y solo se actúa dentro de la carpeta abierta.
 - Los títulos se pueden contraer con la flecha de su izquierda, como en Obsidian.
 - Tres aspectos (PluMd, Windows y Mac), cada uno en modo claro y oscuro (Vista > Aspecto). Solo cambian el aspecto, no la distribución. Los skins son hojas CSS con un registro (`src/renderer/skins.js`), pensado para que los futuros plugins añadan los suyos.
 - Colores personalizables para títulos, negrita, texto, vínculos y más (Vista > Personalizar colores).
+- Plugins: se pueden añadir aspectos, botones y grupos de cinta, comandos (con paleta Ctrl+Mayús+P), paneles laterales, bloques de código con contenido propio, extensiones del editor y ajustes. Se gestionan en Ayuda > Administrar plugins. Guía para escribir uno en [docs/plugins/README.md](docs/plugins/README.md) y ejemplos en [plugins-ejemplo/](plugins-ejemplo/).
 - Solo toca tus ficheros cuando se lo pides: al guardar, o al crear, renombrar, copiar o borrar desde el panel. Avisa si un fichero cambió en disco desde que se abrió y no lo sobrescribe sin preguntar.
 
 ## Capturas
@@ -48,12 +49,14 @@ npm run dist       # genera el instalador y la versión portable en release/
 
 - `src/main/`: proceso principal de Electron (ventana, ficheros, portapapeles).
 - `src/renderer/`: interfaz (editor CodeMirror 6, cinta, tablas, imágenes, diálogos, panel de carpetas, skins).
+- `src/renderer/plugins/` y `src/main/plugins.js`: sistema de plugins (registros, API, cargador, pantalla de plugins).
+- `plugins-ejemplo/` y `docs/`: plugins de ejemplo y documentación.
 - `scripts/build.js`: empaquetado del renderer con esbuild.
 - `.github/workflows/`: compilación del portable en GitHub y publicación de versiones al crear una etiqueta `vX.Y.Z`.
 
 ## Estado
 
-Primera versión de trabajo (0.1.0). Pendiente: API de plugins y conexión MCP para agentes.
+Versión de trabajo. El sistema de plugins está en su primera versión (API 1). Pendiente: tipos de fichero y pestañas con editor propio para plugins, conexión MCP para agentes y un catálogo de plugins.
 
 ## Colaborar
 

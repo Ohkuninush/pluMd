@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { Decoration, ViewPlugin, EditorView, WidgetType } from '@codemirror/view';
 import { resolveImageSrc, getBaseDir } from './images.js';
+import { isRenderedBlock } from './plugins/blockRenderers.js';
 
 // Marcas de sintaxis Markdown que se ocultan (el resto de casos se decide en build()).
 const HIDE = new Set(['HeaderMark', 'EmphasisMark', 'StrikethroughMark', 'CodeMark', 'QuoteMark', 'CodeInfo']);
@@ -169,6 +170,7 @@ function build(view, reveal) {
           if (!onActive) items.push([lastLine.from, lastLine.from, lineDeco('cm-lp-collapsed'), -1]);
         } else if (name === 'Blockquote') eachLine(node.from, node.to, 'cm-lp-quote');
         else if (name === 'FencedCode') {
+          if (isRenderedBlock(state, node)) return false; // lo dibuja el plugin de ese lenguaje
           const marks = node.node.getChildren('CodeMark');
           const info = node.node.getChild('CodeInfo');
           const lang = info ? state.sliceDoc(info.from, info.to).trim() : '';
@@ -238,7 +240,12 @@ function build(view, reveal) {
         if (onActive) return;
         let hide = false;
         if (HIDE.has(name)) hide = true;
-        else if (name === 'LinkMark') hide = parent !== 'LinkReference';
+        else if (name === 'LinkMark') {
+          // Los corchetes solo se ocultan si hay un enlace de verdad (con dirección o referencia). Un texto
+          // entre corchetes sin más, como "[pendiente]", se queda tal cual.
+          const pn = node.node.parent;
+          hide = !!pn && (pn.name === 'Image' || pn.name === 'Autolink' || (pn.name === 'Link' && !!(pn.getChild('URL') || pn.getChild('LinkLabel'))));
+        }
         else if (name === 'URL' || name === 'LinkTitle') hide = LINK_PARENTS.has(parent);
         else if (name === 'LinkLabel') hide = parent === 'Link';
         if (hide) {
