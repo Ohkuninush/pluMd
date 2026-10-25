@@ -4,18 +4,35 @@
 
 Editor y visor de ficheros Markdown (`.md`) para Windows, con cinta de opciones tipo Word. Pensado como primer servicio de una plataforma de herramientas internas con arquitectura de plugins.
 
+<p align="center"><img src="docs/screenshots/plumd-oscuro.png" alt="PluMd con el panel de carpetas, pestañas de documentos y la cinta de opciones, en modo oscuro"></p>
+
+## Descargar
+
+Ve a la página de [versiones](https://github.com/jfr1504/pluMd/releases/latest) y descarga `PluMd-portable-X.Y.Z.exe`. No necesita instalación: se ejecuta con doble clic.
+
+- Windows SmartScreen puede mostrar "Windows protegió su PC", porque el programa aún no está firmado. Pulsa "Más información" y luego "Ejecutar de todos modos".
+- Cada versión incluye `SHA256SUMS.txt` para comprobar que el fichero descargado es el publicado. El `.exe` lo compila GitHub a partir del código de este repositorio.
+- El portable no registra por sí solo los `.md` como suyos. Para abrirlos con doble clic, usa "Abrir con" sobre un `.md` una vez y elige PluMd.
+
 ## Qué hace
 
 - Abre un fichero `.md` suelto (doble clic, botón Abrir o Ctrl+O). No necesita carpeta de trabajo.
 - Dos vistas: Lectura (documento limpio y editable, sin símbolos Markdown) y Código (el Markdown tal cual). Ctrl+E alterna.
-- Cinta con pestañas Inicio, Insertar y Vista: estilos de título, negrita, cursiva, subrayado, listas, tareas, tablas editables, imágenes, vínculos, bloques de código con resaltado, búsqueda y zoom.
+- Cinta de opciones a todo el ancho, con pestañas Inicio, Insertar, Vista y Ayuda: estilos de título, negrita, cursiva, subrayado, listas, tareas, tablas editables, imágenes, vínculos, bloques de código con resaltado, búsqueda y zoom.
 - Varios documentos a la vez en pestañas. Se abren con Abrir, con doble clic o arrastrando los `.md` sobre la ventana.
 - Panel de carpetas a la izquierda (Archivo > Abrir carpeta, o arrastrando una carpeta): muestra los `.md`, `.markdown` y `.txt`, se abren en pestaña con un clic y se recuerda la última carpeta. Con el botón derecho: nuevo documento, renombrar, copiar, pegar y borrar. Borrar envía a la Papelera con confirmación y está desactivado en unidades de red; nada se sobrescribe y solo se actúa dentro de la carpeta abierta.
 - Los títulos se pueden contraer con la flecha de su izquierda, como en Obsidian.
 - Tres aspectos (PluMd, Windows y Mac), cada uno en modo claro y oscuro (Vista > Aspecto). Solo cambian el aspecto, no la distribución. Los skins son hojas CSS con un registro (`src/renderer/skins.js`), pensado para que los futuros plugins añadan los suyos.
 - Colores personalizables para títulos, negrita, texto, vínculos y más (Vista > Personalizar colores).
-- Cinta de opciones a todo el ancho, con pestañas Inicio, Insertar, Vista y Ayuda.
-- No borra ni mueve ficheros. Avisa si el fichero cambió en disco desde que se abrió.
+- Solo toca tus ficheros cuando se lo pides: al guardar, o al crear, renombrar, copiar o borrar desde el panel. Avisa si un fichero cambió en disco desde que se abrió y no lo sobrescribe sin preguntar.
+
+## Capturas
+
+| Windows, modo claro | Mac, modo oscuro |
+| --- | --- |
+| <img src="docs/screenshots/windows-claro.png" alt="Aspecto Windows en modo claro"> | <img src="docs/screenshots/mac-oscuro.png" alt="Aspecto Mac en modo oscuro"> |
+
+Los documentos de las capturas son ficticios.
 
 ## Desarrollo
 
@@ -30,12 +47,13 @@ npm run dist       # genera el instalador y la versión portable en release/
 ## Estructura
 
 - `src/main/`: proceso principal de Electron (ventana, ficheros, portapapeles).
-- `src/renderer/`: interfaz (editor CodeMirror 6, cinta, tablas, imágenes, diálogos).
+- `src/renderer/`: interfaz (editor CodeMirror 6, cinta, tablas, imágenes, diálogos, panel de carpetas, skins).
 - `scripts/build.js`: empaquetado del renderer con esbuild.
+- `.github/workflows/`: compilación del portable en GitHub y publicación de versiones al crear una etiqueta `vX.Y.Z`.
 
 ## Estado
 
-Primera versión de trabajo. Pendiente: API de plugins y conexión MCP para agentes.
+Primera versión de trabajo (0.1.0). Pendiente: API de plugins y conexión MCP para agentes.
 
 ## Colaborar
 
