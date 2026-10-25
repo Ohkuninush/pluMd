@@ -139,7 +139,7 @@ await plumd.fs.list(dir)
 await plumd.fs.write(path, texto, { overwrite: false })
 ```
 
-Solo se permiten rutas dentro de la carpeta abierta en el panel de carpetas o de documentos que ya están abiertos. `write` no sustituye un fichero existente salvo que pases `{ overwrite: true }`. `list` solo devuelve documentos de texto y carpetas.
+Solo se permiten rutas dentro de la carpeta abierta en el panel de carpetas o de documentos que ya están abiertos. Se comprueba la ruta real: un enlace simbólico o junction que apunte fuera de la carpeta abierta no cuenta como dentro. `write` solo crea o modifica documentos `.md`, `.markdown` o `.txt`, y no sustituye un fichero existente salvo que pases `{ overwrite: true }`. `list` solo devuelve documentos de texto y carpetas.
 
 ### 5.7 Ajustes y datos propios
 

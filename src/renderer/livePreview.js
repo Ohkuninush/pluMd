@@ -74,8 +74,9 @@ class ImageWidget extends WidgetType {
       wrap.textContent = `Imagen no encontrada: ${this.alt || this.src}`;
       view.requestMeasure();
     };
-    if (!url) fail();
-    else {
+    const load = () => {
+      wrap.classList.remove('blocked');
+      wrap.replaceChildren();
       const img = new Image();
       img.alt = this.alt;
       img.title = this.alt;
@@ -83,7 +84,23 @@ class ImageWidget extends WidgetType {
       img.onerror = fail;
       img.src = url;
       wrap.append(img);
-    }
+    };
+    if (!url) fail();
+    else if (/^https?:/i.test(url)) {
+      // Un documento ajeno podría usar una imagen remota para saber cuándo y desde dónde se abre.
+      // No se carga hasta que el usuario lo pide.
+      wrap.classList.add('blocked');
+      let host = url;
+      try { host = new URL(url).host; } catch { /* se deja la URL */ }
+      wrap.textContent = `Imagen remota bloqueada (${host}). Pulsa el botón para cargarla.`;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Cargar';
+      btn.addEventListener('mousedown', (e) => e.stopPropagation());
+      btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); load(); view.requestMeasure(); });
+      wrap.append(' ', btn);
+      view.requestMeasure();
+    } else load();
     // Un clic selecciona la imagen entera; el botón Imagen de la cinta permite editarla.
     wrap.addEventListener('mousedown', (e) => {
       e.preventDefault();

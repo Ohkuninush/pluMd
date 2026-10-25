@@ -1,10 +1,11 @@
 {
   "name": "plumd",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Editor y visor de Markdown con cinta tipo Word y plugins",
   "main": "src/main/main.js",
   "scripts": {
     "build": "node scripts/build.js",
+    "test": "node --test \"tests/*.test.js\"",
     "start": "node scripts/build.js && electron .",
     "watch": "node scripts/build.js --watch",
     "dist": "node scripts/build.js && electron-builder --win nsis portable"

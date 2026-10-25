@@ -318,7 +318,14 @@ async function save(force = false) {
   const d = cur;
   if (!d.file) return saveAs();
   const content = view.state.doc.toString();
-  const r = await window.api.writeFile({ path: d.file, content, expectedMtimeMs: d.mtimeMs, force });
+  let r;
+  try {
+    r = await window.api.writeFile({ path: d.file, content, expectedMtimeMs: d.mtimeMs, force });
+  } catch (e) {
+    // El documento sigue marcado como no guardado.
+    showBanner(`No se pudo guardar: ${e.message}`);
+    return;
+  }
   if (r.conflict) {
     showBanner('El fichero ha cambiado en disco desde que lo abriste.', [
       ['Sobrescribir', () => save(true)],
@@ -338,7 +345,13 @@ async function saveAs() {
   const content = view.state.doc.toString();
   const p = await window.api.saveAsDialog(d.file || 'sin-titulo.md');
   if (!p) return;
-  const r = await window.api.writeFile({ path: p, content, expectedMtimeMs: null, force: true });
+  let r;
+  try {
+    r = await window.api.writeFile({ path: p, content, expectedMtimeMs: null, force: true });
+  } catch (e) {
+    showBanner(`No se pudo guardar: ${e.message}`);
+    return;
+  }
   d.file = p;
   d.mtimeMs = r.mtimeMs;
   d.dirty = false;
