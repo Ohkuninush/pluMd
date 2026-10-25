@@ -1,7 +1,7 @@
 name: Compilar y publicar
 
-# - En cada Pull Request hacia main: compila el portable para comprobar que funciona y lo guarda 7 días como artefacto.
-# - Al subir una etiqueta vX.Y.Z (por ejemplo v0.1.0): compila y publica una versión en GitHub con el portable
+# - En cada Pull Request hacia main: compila el instalador y el portable para comprobar que funcionan y los guarda 7 días como artefacto.
+# - Al subir una etiqueta vX.Y.Z (por ejemplo v0.1.0): compila y publica una versión en GitHub con el instalador, el portable
 #   y sus sumas de comprobación.
 on:
   pull_request:
@@ -42,14 +42,14 @@ jobs:
       - name: Compilar la interfaz
         run: node scripts/build.js
 
-      - name: Empaquetar el portable
-        run: npx electron-builder --win portable --publish never
+      - name: Empaquetar el instalador y el portable
+        run: npx electron-builder --win nsis portable --publish never
 
       - name: Sumas de comprobación
         shell: bash
         run: |
           cd release
-          sha256sum PluMd-portable-*.exe > SHA256SUMS.txt
+          sha256sum PluMd-Setup-*.exe PluMd-portable-*.exe > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Guardar el resultado (solo pruebas)
@@ -58,6 +58,7 @@ jobs:
         with:
           name: PluMd-portable
           path: |
+            release/PluMd-Setup-*.exe
             release/PluMd-portable-*.exe
             release/SHA256SUMS.txt
           retention-days: 7
@@ -69,7 +70,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            release/PluMd-portable-*.exe release/SHA256SUMS.txt \
+            release/PluMd-Setup-*.exe release/PluMd-portable-*.exe release/SHA256SUMS.txt \
             --title "PluMd ${GITHUB_REF_NAME#v}" \
             --notes-file .github/release-notes.md \
             --verify-tag
