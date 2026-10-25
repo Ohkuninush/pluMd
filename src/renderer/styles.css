@@ -189,6 +189,8 @@ main { flex: 1; min-height: 0; overflow: auto; background: var(--bg); }
 .cm-lp-img { display: inline-block; max-width: 100%; vertical-align: bottom; cursor: pointer; border-radius: var(--r-s); }
 .cm-lp-img img { display: block; max-width: 100%; height: auto; border-radius: var(--r-s); }
 .cm-lp-img.broken { color: var(--muted); border: 1px dashed var(--border); padding: 4px 10px; font-size: .85em; }
+.cm-lp-img.blocked { color: var(--muted); border: 1px dashed var(--border); padding: 4px 10px; font-size: .85em; cursor: default; }
+.cm-lp-img.blocked button { margin-left: 6px; font: inherit; cursor: pointer; }
 
 /* Tabla editable */
 .cm-table-widget { margin: 10px 0; }

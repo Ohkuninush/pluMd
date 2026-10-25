@@ -20,7 +20,7 @@ Ve a la página de [versiones](https://github.com/jfr1504/pluMd/releases/latest)
 - Dos vistas: Lectura (documento limpio y editable, sin símbolos Markdown) y Código (el Markdown tal cual). Ctrl+E alterna.
 - Cinta de opciones a todo el ancho, con pestañas Inicio, Insertar, Vista y Ayuda: estilos de título, negrita, cursiva, subrayado, listas, tareas, tablas editables, imágenes, vínculos (a páginas web o a carpetas, incluidas las de red), bloques de código con resaltado, búsqueda y zoom. Al escribir `/` en el editor se abre un menú de comandos para insertar títulos, listas, tablas y más.
 - Varios documentos a la vez en pestañas. Se abren con Abrir, con doble clic o arrastrando los `.md` sobre la ventana.
-- Panel de carpetas a la izquierda, abierto por defecto (se cierra con la cruz y se vuelve a abrir desde Vista) (Archivo > Abrir carpeta, o arrastrando una carpeta): muestra los `.md`, `.markdown` y `.txt`, se abren en pestaña con un clic y se recuerda la última carpeta. Con el botón derecho: nuevo documento, renombrar, copiar, pegar y borrar. Borrar envía a la Papelera con confirmación y está desactivado en unidades de red; nada se sobrescribe y solo se actúa dentro de la carpeta abierta.
+- Panel de carpetas a la izquierda, abierto por defecto (se cierra con la cruz y se vuelve a abrir desde Vista) (Archivo > Abrir carpeta, o arrastrando una carpeta): muestra los `.md`, `.markdown` y `.txt`, se abren en pestaña con un clic y se recuerda la última carpeta. Con el botón derecho: nuevo documento, renombrar, copiar, pegar y borrar. Borrar envía a la Papelera con confirmación; en unidades de red no hay Papelera, así que pide una confirmación aparte y el borrado es definitivo; nada se sobrescribe y solo se actúa dentro de la carpeta abierta.
 - Los títulos se pueden contraer con la flecha de su izquierda, como en Obsidian.
 - Tres aspectos (PluMd, Windows y Mac), cada uno en modo claro y oscuro (Vista > Aspecto). Solo cambian el aspecto, no la distribución. Los skins son hojas CSS con un registro (`src/renderer/skins.js`), pensado para que los futuros plugins añadan los suyos.
 - Colores personalizables para títulos, negrita, texto, vínculos y más (Vista > Personalizar colores).
@@ -56,7 +56,7 @@ npm run dist       # genera el instalador y la versión portable en release/
 
 ## Estado
 
-Versión de trabajo. El sistema de plugins está en su primera versión (API 1). Pendiente: tipos de fichero y pestañas con editor propio para plugins, conexión MCP para agentes y un catálogo de plugins.
+Versión de trabajo. Las operaciones con ficheros comprueban siempre la ruta real (sin seguir enlaces fuera de la carpeta abierta), el guardado es atómico y `npm test` ejecuta las pruebas del acceso a ficheros. El sistema de plugins está en su primera versión (API 1). Pendiente: tipos de fichero y pestañas con editor propio para plugins, conexión MCP para agentes y un catálogo de plugins.
 
 ## Colaborar
 

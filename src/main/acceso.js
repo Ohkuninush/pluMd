@@ -1,0 +1,116 @@
+// Rutas reales, lista de accesos autorizados y escritura atómica.
+// El renderer nunca decide por sí solo qué ficheros se leen o escriben: solo se puede operar sobre
+//  - ficheros que el usuario eligió (diálogo, arrastre, argumento de arranque o vínculo abierto), y
+//  - documentos dentro de la carpeta abierta, comparando siempre la ruta REAL (sin enlaces ni junctions).
+const fs = require('fs');
+const path = require('path');
+
+const MD_RE = /\.(md|markdown|txt)$/i;
+
+const key = (p) => path.resolve(p).toLowerCase();
+
+// ¿`childKey` es `parentKey` o está dentro? Ambas ya normalizadas con key().
+function within(childKey, parentKey) {
+  const base = parentKey.endsWith(path.sep) ? parentKey : parentKey + path.sep;
+  return childKey === parentKey || childKey.startsWith(base);
+}
+
+// Ruta real: resuelve enlaces simbólicos y junctions. Si el último tramo aún no existe (fichero por crear),
+// resuelve su carpeta y le añade el nombre. Un enlace roto se rechaza.
+async function realPath(p) {
+  const abs = path.resolve(p);
+  try {
+    return await fs.promises.realpath(abs);
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+    try {
+      await fs.promises.lstat(abs);
+      throw new Error('Enlace roto: ' + abs);
+    } catch (e2) {
+      if (e2.code !== 'ENOENT') throw e2;
+    }
+    const dir = path.dirname(abs);
+    if (dir === abs) throw e;
+    return path.join(await realPath(dir), path.basename(abs));
+  }
+}
+
+// Guarda en un temporal de la misma carpeta y lo cambia por el original: un corte a mitad de escritura
+// deja el documento anterior intacto en vez de truncado.
+async function writeAtomic(file, content) {
+  const real = await realPath(file);
+  const tmp = path.join(path.dirname(real), `.${path.basename(real)}.${process.pid}.${Date.now()}.tmp`);
+  const fh = await fs.promises.open(tmp, 'wx');
+  try {
+    await fh.writeFile(content, 'utf8');
+    await fh.sync();
+  } finally {
+    await fh.close();
+  }
+  try {
+    await fs.promises.rename(tmp, real);
+  } catch (e) {
+    await fs.promises.unlink(tmp).catch(() => {});
+    throw e;
+  }
+}
+
+const MAX_ROOTS = 20;
+
+// Carpetas y ficheros autorizados. Las carpetas elegidas se recuerdan entre sesiones (el panel reabre la última).
+function createAccess({ storeFile = null } = {}) {
+  const files = new Set();
+  let roots = [];
+  if (storeFile) {
+    try {
+      const v = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+      if (Array.isArray(v)) roots = v.filter((x) => typeof x === 'string').slice(0, MAX_ROOTS);
+    } catch {
+      /* primera vez o fichero ilegible: sin carpetas recordadas */
+    }
+  }
+  const save = () => {
+    if (!storeFile) return;
+    try {
+      fs.writeFileSync(storeFile, JSON.stringify(roots));
+    } catch {
+      /* sin persistencia: solo valen las carpetas de esta sesión */
+    }
+  };
+
+  return {
+    async allowFile(p) {
+      try {
+        files.add(key(await realPath(p)));
+      } catch {
+        /* ruta inválida: no se autoriza */
+      }
+    },
+    async allowRoot(p) {
+      try {
+        const real = await realPath(p);
+        roots = [real, ...roots.filter((r) => key(r) !== key(real))].slice(0, MAX_ROOTS);
+        save();
+      } catch {
+        /* ruta inválida: no se autoriza */
+      }
+    },
+    async fileAllowed(p) {
+      try {
+        return files.has(key(await realPath(p)));
+      } catch {
+        return false;
+      }
+    },
+    async rootAllowed(p) {
+      try {
+        const k = key(await realPath(p));
+        return roots.some((r) => key(r) === k);
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+module.exports = { MD_RE, key, within, realPath, writeAtomic, createAccess };

@@ -12,7 +12,12 @@ contextBridge.exposeInMainWorld('api', {
   clipboardWrite: (t) => ipcRenderer.invoke('clipboard:write', t),
   appInfo: () => ipcRenderer.invoke('app:info'),
   // Ruta real de un fichero soltado en la ventana (Electron ya no expone file.path).
-  pathForFile: (f) => webUtils.getPathForFile(f),
+  // La ruta se comunica también al proceso principal, que la autoriza (solo existe para ficheros reales).
+  pathForFile: (f) => {
+    const p = webUtils.getPathForFile(f);
+    if (p) ipcRenderer.send('access:dropped', p);
+    return p;
+  },
   pickFolder: () => ipcRenderer.invoke('fs:pickFolder'),
   isDir: (p) => ipcRenderer.invoke('fs:isDir', p),
   fsSetRoot: (p) => ipcRenderer.invoke('fs:setRoot', p),
@@ -20,7 +25,7 @@ contextBridge.exposeInMainWorld('api', {
   fsCreate: (dir, name) => ipcRenderer.invoke('fs:create', dir, name),
   fsRename: (p, name) => ipcRenderer.invoke('fs:rename', p, name),
   fsCopy: (src, dir) => ipcRenderer.invoke('fs:copy', src, dir),
-  fsDelete: (p) => ipcRenderer.invoke('fs:delete', p),
+  fsDelete: (p, permanent) => ipcRenderer.invoke('fs:delete', p, permanent === true),
   reveal: (p) => ipcRenderer.invoke('fs:reveal', p),
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   pluginsSetEnabled: (id, on, v) => ipcRenderer.invoke('plugins:setEnabled', id, on, v),

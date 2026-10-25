@@ -205,7 +205,7 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
     try { expanded = new Set(JSON.parse(store.get(expKey()) || '[]')); } catch { expanded = new Set(); }
     titleEl.textContent = base(root) || root;
     titleEl.title = root;
-    note.textContent = rootNet ? 'Unidad de red: se puede crear, renombrar y copiar, pero no borrar desde aquí.' : '';
+    note.textContent = rootNet ? 'Unidad de red: aquí no hay Papelera, así que borrar es definitivo.' : '';
     note.hidden = !rootNet;
     empty.hidden = true;
     tree.hidden = false;
@@ -408,16 +408,29 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
   async function remove(node) {
     const p = node.dataset.path;
     if (node.dataset.dir === '1') return notify('Solo se pueden borrar documentos, no carpetas.');
-    if (rootNet) return notify('En unidades de red no se puede borrar desde PluMd. Hazlo desde el Explorador de Windows.');
     const dirty = isOpenDirty(p);
-    const ok = await confirm({
-      title: 'Mover a la Papelera',
-      message: `«${base(p)}» se moverá a la Papelera de reciclaje, de donde se puede recuperar.${dirty ? ' Ojo: tiene cambios sin guardar en una pestaña abierta.' : ''}`,
-      okLabel: 'Mover a la Papelera',
-      danger: true,
-    });
-    if (!ok) return;
-    const r = await window.api.fsDelete(p);
+    const warnDirty = dirty ? ' Ojo: tiene cambios sin guardar en una pestaña abierta.' : '';
+    const ask = (permanent) => confirm(permanent
+      ? {
+          title: 'Eliminar definitivamente',
+          message: `«${base(p)}» está en una unidad de red, donde no hay Papelera: se eliminará de forma definitiva y no se podrá recuperar.${warnDirty}`,
+          okLabel: 'Eliminar definitivamente',
+          danger: true,
+        }
+      : {
+          title: 'Mover a la Papelera',
+          message: `«${base(p)}» se moverá a la Papelera de reciclaje, de donde se puede recuperar.${warnDirty}`,
+          okLabel: 'Mover a la Papelera',
+          danger: true,
+        });
+    // En red se pide la confirmación definitiva de entrada. Si la carpeta parece local pero el documento
+    // resulta estar en red (un enlace o junction), el proceso principal lo avisa y se vuelve a preguntar.
+    if (!(await ask(rootNet))) return;
+    let r = await window.api.fsDelete(p, rootNet);
+    if (r.needsPermanent) {
+      if (!(await ask(true))) return;
+      r = await window.api.fsDelete(p, true);
+    }
     if (!r.ok) return notify(r.error);
     await refreshDir(parent(p));
     onDeleted(p);
@@ -479,11 +492,9 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
     if (node && !isDir) {
       items.push('-');
       items.push({
-        label: 'Borrar (a la Papelera)',
+        label: rootNet ? 'Borrar (definitivo, sin Papelera)' : 'Borrar (a la Papelera)',
         icon: 'trash',
         key: 'Supr',
-        disabled: rootNet,
-        title: rootNet ? 'En unidades de red no se puede borrar desde PluMd' : '',
         run: () => remove(node),
       });
     }

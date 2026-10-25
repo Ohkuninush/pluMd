@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, protocol, net } =
 const fs = require('fs');
 const path = require('path');
 const { createFsOps } = require('./fsops');
+const { MD_RE, createAccess, writeAtomic } = require('./acceso');
 const { createPlugins, registerScheme } = require('./plugins');
 
 // El esquema plumd-plugin:// (ficheros de los plugins) debe registrarse antes de que la app esté lista.
@@ -19,7 +20,8 @@ function fileFromArgs(argv) {
   return args.find((a) => !a.startsWith('-') && /\.(md|markdown|txt)$/i.test(a) && fs.existsSync(a)) || null;
 }
 
-function sendOpen(file) {
+async function sendOpen(file) {
+  if (access) await access.allowFile(file);
   if (win && !win.webContents.isLoading()) win.webContents.send('open-file', file);
   else pendingFile = file;
 }
@@ -80,11 +82,14 @@ app.on('open-file', (e, f) => {
 });
 
 let plugins = null;
+let access = null; // ficheros y carpetas autorizados (acceso.js)
 
 app.whenReady().then(() => {
+  access = createAccess({ storeFile: path.join(app.getPath('userData'), 'carpetas.json') });
   plugins = createPlugins({ userDataDir: app.getPath('userData'), argv: process.argv });
   plugins.installProtocol(protocol, net);
   pendingFile = fileFromArgs(process.argv);
+  if (pendingFile) access.allowFile(pendingFile);
   createWindow();
 });
 
@@ -104,7 +109,24 @@ const guard = (fn) => async (_e, ...args) => {
 
 ipcMain.handle('fs:pickFolder', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
-  return r.canceled ? null : r.filePaths[0];
+  if (r.canceled) return null;
+  await access.allowRoot(r.filePaths[0]);
+  return r.filePaths[0];
+});
+// Un fichero o carpeta soltado en la ventana: la ruta sale de webUtils.getPathForFile en el preload,
+// que solo devuelve ruta para ficheros reales del disco, no para objetos fabricados por la página.
+// Las lecturas y escrituras siguientes esperan a que termine (authQueue), porque llegan justo detrás.
+let authQueue = Promise.resolve();
+ipcMain.on('access:dropped', (_e, p) => {
+  if (typeof p !== 'string' || !p) return;
+  authQueue = authQueue.then(async () => {
+    try {
+      if ((await fs.promises.stat(p)).isDirectory()) await access.allowRoot(p);
+      else if (MD_RE.test(p)) await access.allowFile(p);
+    } catch {
+      /* ruta inexistente: no se autoriza */
+    }
+  });
 });
 ipcMain.handle('fs:isDir', async (_e, p) => {
   try {
@@ -113,26 +135,40 @@ ipcMain.handle('fs:isDir', async (_e, p) => {
     return false;
   }
 });
-ipcMain.handle('fs:setRoot', guard(async (dir) => ({ ok: true, ...(await ops.setRoot(dir)) })));
+ipcMain.handle('fs:setRoot', guard(async (dir) => {
+  await authQueue;
+  if (!(await access.rootAllowed(dir))) throw new Error('Esa carpeta no está autorizada: ábrela con «Abrir carpeta» o arrástrala a la ventana.');
+  return { ok: true, ...(await ops.setRoot(dir)) };
+}));
 ipcMain.handle('fs:listDir', guard(async (dir) => ({ ok: true, entries: await ops.listDir(dir) })));
 ipcMain.handle('fs:create', guard((dir, name) => ops.create(dir, name)));
 ipcMain.handle('fs:rename', guard((p, name) => ops.rename(p, name)));
 ipcMain.handle('fs:copy', guard((src, dir) => ops.copy(src, dir)));
-ipcMain.handle('fs:delete', guard((p) => ops.remove(p)));
-ipcMain.handle('fs:reveal', (_e, p) => {
-  if (ops.inRoot(p)) shell.showItemInFolder(p);
+ipcMain.handle('fs:delete', guard((p, permanent) => ops.remove(p, { permanent: permanent === true })));
+ipcMain.handle('fs:reveal', async (_e, p) => {
+  if (await ops.contains(p)) shell.showItemInFolder(p);
 });
 
 // ---- IPC: ficheros ----
-// La app nunca borra ni mueve ficheros. Solo lee y escribe el que el usuario abre.
+// Solo se lee y escribe un fichero que el usuario eligió o un documento dentro de la carpeta abierta.
+// Borrar y renombrar solo ocurren desde el panel de carpetas (fsops.js).
+async function mayUse(file) {
+  await authQueue;
+  if (typeof file !== 'string' || !file) return false;
+  if (await access.fileAllowed(file)) return true;
+  return MD_RE.test(file) && (await ops.contains(file));
+}
+const denied = () => new Error('Acceso no autorizado a ese fichero.');
 
 ipcMain.handle('file:read', async (_e, file) => {
+  if (!(await mayUse(file))) throw denied();
   const [content, stat] = await Promise.all([fs.promises.readFile(file, 'utf8'), fs.promises.stat(file)]);
   return { path: file, content: content.replace(/^﻿/, ''), mtimeMs: stat.mtimeMs };
 });
 
 // Si el fichero cambió en disco desde que se abrió (p. ej. carpeta de red compartida), avisa en vez de pisar.
 ipcMain.handle('file:write', async (_e, { path: file, content, expectedMtimeMs, force }) => {
+  if (!(await mayUse(file))) throw denied();
   if (!force && expectedMtimeMs != null) {
     try {
       const stat = await fs.promises.stat(file);
@@ -141,7 +177,7 @@ ipcMain.handle('file:write', async (_e, { path: file, content, expectedMtimeMs, 
       /* el fichero ya no existe: se escribe de nuevo */
     }
   }
-  await fs.promises.writeFile(file, content, 'utf8');
+  await writeAtomic(file, String(content));
   const stat = await fs.promises.stat(file);
   return { ok: true, mtimeMs: stat.mtimeMs };
 });
@@ -151,7 +187,9 @@ ipcMain.handle('file:openDialog', async () => {
     properties: ['openFile'],
     filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
   });
-  return r.canceled ? null : r.filePaths[0];
+  if (r.canceled) return null;
+  await access.allowFile(r.filePaths[0]);
+  return r.filePaths[0];
 });
 
 ipcMain.handle('file:saveAsDialog', async (_e, suggested) => {
@@ -159,7 +197,9 @@ ipcMain.handle('file:saveAsDialog', async (_e, suggested) => {
     defaultPath: suggested,
     filters: [{ name: 'Markdown', extensions: ['md'] }],
   });
-  return r.canceled ? null : r.filePath;
+  if (r.canceled) return null;
+  await access.allowFile(r.filePath);
+  return r.filePath;
 });
 
 // Solo se abren enlaces web y de correo; nunca rutas locales ni otros esquemas.
@@ -189,6 +229,8 @@ ipcMain.handle('shell:openLocal', async (_e, url, baseDir) => {
       const err = await shell.openPath(p);
       return err ? { kind: 'missing', path: p } : { kind: 'dir', path: p };
     }
+    // El usuario ha pulsado el vínculo: si es Markdown se autoriza para que el renderer lo abra.
+    if (MD_RE.test(p)) await access.allowFile(p);
     return { kind: 'file', path: p };
   } catch {
     return { kind: 'missing', path: p };
