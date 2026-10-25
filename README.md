@@ -8,11 +8,11 @@ Editor y visor de ficheros Markdown (`.md`) para Windows, con cinta de opciones 
 
 ## Descargar
 
-Ve a la página de [versiones](https://github.com/jfr1504/pluMd/releases/latest) y descarga `PluMd-portable-X.Y.Z.exe`. No necesita instalación: se ejecuta con doble clic.
+Ve a la página de [versiones](https://github.com/jfr1504/pluMd/releases/latest) y descarga `PluMd-Setup-X.Y.Z.exe` (instalador, registra los `.md`) o `PluMd-portable-X.Y.Z.exe` (no necesita instalación: se ejecuta con doble clic).
 
 - Windows SmartScreen puede mostrar "Windows protegió su PC", porque el programa aún no está firmado. Pulsa "Más información" y luego "Ejecutar de todos modos".
 - Cada versión incluye `SHA256SUMS.txt` para comprobar que el fichero descargado es el publicado. El `.exe` lo compila GitHub a partir del código de este repositorio.
-- El portable no registra por sí solo los `.md` como suyos. Para abrirlos con doble clic, usa "Abrir con" sobre un `.md` una vez y elige PluMd.
+- El portable no registra por sí solo los `.md` como suyos. Para abrirlos con doble clic, usa "Abrir con" sobre un `.md` una vez y elige PluMd, o instala con el instalador.
 
 ## Qué hace
 
@@ -52,7 +52,7 @@ npm run dist       # genera el instalador y la versión portable en release/
 - `src/renderer/plugins/` y `src/main/plugins.js`: sistema de plugins (registros, API, cargador, pantalla de plugins).
 - `plugins-ejemplo/` y `docs/`: plugins de ejemplo y documentación.
 - `scripts/build.js`: empaquetado del renderer con esbuild.
-- `.github/workflows/`: compilación del portable en GitHub y publicación de versiones al crear una etiqueta `vX.Y.Z`.
+- `.github/workflows/`: compilación del instalador y el portable en GitHub y publicación de versiones al crear una etiqueta `vX.Y.Z`.
 
 ## Estado
 

@@ -1,6 +1,6 @@
 {
   "name": "plumd",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Editor y visor de Markdown con cinta tipo Word y plugins",
   "main": "src/main/main.js",
   "scripts": {
@@ -82,6 +82,7 @@
       ]
     },
     "nsis": {
+      "artifactName": "PluMd-Setup-${version}.exe",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true
