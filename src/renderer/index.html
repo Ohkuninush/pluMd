@@ -3,13 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file: https:;" />
-  <title>Visor MD</title>
+  <title>PluMd</title>
   <link rel="stylesheet" href="styles.css" />
+  <script src="early.js"></script>
 </head>
 <body>
   <header id="titlebar">
     <div class="qa">
-      <span class="brand" title="Visor MD">MD</span>
+      <img class="brand" src="logo.svg" alt="PluMd" title="PluMd" />
+      <button type="button" class="rb rb-ic" data-cmd="toggle-sidebar" data-state="sidebar" data-icon="sidebar" title="Panel de carpetas (Ctrl+Mayús+E)"></button>
       <button type="button" class="rb rb-ic" data-cmd="save" data-icon="save" title="Guardar (Ctrl+S)"></button>
       <button type="button" class="rb rb-ic" data-cmd="undo" data-icon="undo" title="Deshacer (Ctrl+Z)"></button>
       <button type="button" class="rb rb-ic" data-cmd="redo" data-icon="redo" title="Rehacer (Ctrl+Y)"></button>
@@ -22,14 +24,37 @@
     <button type="button" class="tab active" data-tab="home">Inicio</button>
     <button type="button" class="tab" data-tab="insert">Insertar</button>
     <button type="button" class="tab" data-tab="view">Vista</button>
+    <button type="button" class="tab" data-tab="help">Ayuda</button>
     <span class="spacer"></span>
     <button type="button" id="btn-collapse" class="rb rb-ic" data-cmd="ribbon-toggle" data-icon="chevronup" title="Contraer la cinta"></button>
   </nav>
   <div id="panels"></div>
-  <div id="banner" hidden></div>
-  <main>
-    <div id="editor"></div>
-  </main>
+  <div id="workspace">
+    <aside id="sidebar" hidden aria-label="Panel de carpetas">
+      <div class="sb-head">
+        <span id="sb-title" class="sb-title">Carpeta</span>
+        <button type="button" id="sb-new" class="rb rb-ic" data-icon="filenew" title="Nuevo documento"></button>
+        <button type="button" id="sb-open" class="rb rb-ic" data-icon="folder" title="Abrir otra carpeta (Ctrl+Mayús+O)"></button>
+        <button type="button" id="sb-refresh" class="rb rb-ic" data-icon="refresh" title="Actualizar"></button>
+        <button type="button" id="sb-close" class="rb rb-ic" data-icon="chevronup" title="Ocultar el panel"></button>
+      </div>
+      <input id="sb-filter" type="search" placeholder="Filtrar por nombre…" autocomplete="off" />
+      <div id="sb-note" class="sb-note" hidden></div>
+      <div id="sb-tree" role="tree" hidden></div>
+      <div id="sb-empty" class="sb-empty">
+        <p class="sb-empty-text"></p>
+        <button type="button" id="sb-empty-open" class="primary">Abrir carpeta…</button>
+      </div>
+    </aside>
+    <div id="splitter" hidden title="Arrastra para cambiar el ancho"></div>
+    <div id="docarea">
+      <div id="doctabs" role="tablist" aria-label="Documentos abiertos"></div>
+      <div id="banner" hidden></div>
+      <main>
+        <div id="editor"></div>
+      </main>
+    </div>
+  </div>
   <footer id="statusbar">
     <span id="wordcount">0 palabras</span>
     <span class="spacer"></span>
@@ -44,6 +69,7 @@
       <span id="zoomval">100%</span>
     </span>
   </footer>
+  <div id="dropzone" hidden><div>Suelta el fichero .md para abrirlo en una pestaña</div></div>
   <div id="dlg" hidden></div>
   <script src="renderer.js"></script>
 </body>

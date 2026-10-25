@@ -1,6 +1,6 @@
 # Cómo colaborar
 
-Gracias por el interés en Visor MD. Se aceptan errores, ideas y cambios de código.
+Gracias por el interés en PluMd. Se aceptan errores, ideas y cambios de código.
 
 ## Avisar de un error o proponer una mejora
 

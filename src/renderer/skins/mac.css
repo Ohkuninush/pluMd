@@ -1,0 +1,96 @@
+/* Skin Mac: aspecto inspirado en macOS (esquinas redondeadas, controles suaves, tipografía Inter).
+   Es una imitación visual: no usa tipografías ni iconos de Apple. Solo redefine tokens y ajusta
+   formas; no cambia la distribución de la interfaz. */
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root[data-skin='mac'] {
+  --font-ui: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  --font-text: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', Menlo, 'Cascadia Code', Consolas, monospace;
+  --r-s: 6px;
+  --r-m: 8px;
+  --r-l: 12px;
+  --shadow-pop: 0 10px 36px rgba(0, 0, 0, .22), 0 0 0 .5px rgba(0, 0, 0, .14);
+  --shadow-dlg: 0 24px 70px rgba(0, 0, 0, .35), 0 0 0 .5px rgba(0, 0, 0, .16);
+
+  --bg: #ffffff;
+  --bg-2: #f5f5f7;
+  --bg-3: #e8e8ed;
+  --border: #d8d8dd;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --accent: #007aff;
+  --accent-soft: #d9eaff;
+  --code-bg: #f2f2f4;
+  --selection: #b3d7ff;
+  --on-accent: #ffffff;
+}
+
+:root[data-skin='mac'][data-theme='dark'] {
+  --bg: #1e1e1e;
+  --bg-2: #2a2a2c;
+  --bg-3: #3a3a3d;
+  --border: #3f3f43;
+  --text: #f5f5f7;
+  --muted: #98989f;
+  --accent: #0a84ff;
+  --accent-soft: #12365e;
+  --code-bg: #2c2c2e;
+  --selection: #264f8a;
+  --on-accent: #ffffff;
+}
+
+:root[data-skin='mac'] body { letter-spacing: -.005em; -webkit-font-smoothing: antialiased; }
+:root[data-skin='mac'] .ico { stroke-width: 1.45; }
+
+/* Barra de título y pestañas: gris claro sin líneas duras */
+:root[data-skin='mac'] #titlebar { background: var(--bg-2); border-bottom: 0; }
+:root[data-skin='mac'] #titlebar .brand { border-radius: 7px; }
+:root[data-skin='mac'] #tabs { background: var(--bg-2); padding-bottom: 6px; align-items: center; height: 38px; }
+
+/* Pestañas de la cinta: píldoras */
+:root[data-skin='mac'] #tabs .tab { border: 0; border-radius: var(--r-m); padding: 4px 13px; }
+:root[data-skin='mac'] #tabs .tab:hover { background: var(--bg-3); }
+:root[data-skin='mac'] #tabs .tab.active { background: var(--bg-3); border: 0; font-weight: 600; }
+:root[data-skin='mac'] #tabs .tab.file { background: transparent; color: var(--accent); font-weight: 600; margin-right: 4px; }
+:root[data-skin='mac'] #tabs .tab.file:hover { background: var(--accent-soft); }
+
+/* Cinta: panel gris suave, sin separadores marcados */
+:root[data-skin='mac'] #panels { background: var(--bg-2); border-top: 0; border-bottom: 1px solid var(--border); }
+:root[data-skin='mac'] .panel { padding-top: 4px; }
+:root[data-skin='mac'] .grp { border-right-color: transparent; position: relative; }
+:root[data-skin='mac'] .grp + .grp::before { content: ''; position: absolute; left: 0; top: 10%; bottom: 22%; width: 1px; background: var(--border); }
+:root[data-skin='mac'] .grp-label { font-size: 10.5px; letter-spacing: .02em; }
+:root[data-skin='mac'] .rb { border-radius: var(--r-m); }
+:root[data-skin='mac'] .rb:hover { background: var(--bg-3); border-color: transparent; }
+:root[data-skin='mac'] .rb.active { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+:root[data-skin='mac'] .gallery .st { background: var(--bg); border-color: transparent; box-shadow: 0 0 0 .5px var(--border), 0 1px 2px rgba(0, 0, 0, .06); border-radius: var(--r-m); }
+:root[data-skin='mac'] .gallery .st.active { background: var(--accent-soft); box-shadow: 0 0 0 1.5px var(--accent); }
+
+/* Pestañas de documentos: píldora con sombra suave */
+:root[data-skin='mac'] #doctabs { background: var(--bg-2); border-bottom: 1px solid var(--border); height: 38px; align-items: center; padding: 0 10px 4px; }
+:root[data-skin='mac'] .dtab { height: 28px; border: 0; border-radius: var(--r-m); background: transparent; min-width: 120px; }
+:root[data-skin='mac'] .dtab:hover { background: var(--bg-3); }
+:root[data-skin='mac'] .dtab.active { height: 28px; margin-bottom: 0; background: var(--bg); border: 0; border-top: 0; box-shadow: 0 0 0 .5px var(--border), 0 1px 3px rgba(0, 0, 0, .12); color: var(--text); }
+
+:root[data-skin='mac'] #statusbar { background: var(--bg-2); border-top: 1px solid var(--border); }
+
+/* Diálogos y menús: cristal esmerilado y esquinas grandes */
+:root[data-skin='mac'] #dlg { backdrop-filter: blur(8px); background: rgba(0, 0, 0, .28); }
+:root[data-skin='mac'] .popup { border-color: transparent; }
+:root[data-skin='mac'] button.primary { border-radius: var(--r-m); }
+:root[data-skin='mac'] .menu button:hover { background: var(--accent); color: var(--on-accent); }
+
+/* Barras de desplazamiento tipo macOS: finas y redondeadas */
+:root[data-skin='mac'] ::-webkit-scrollbar { width: 14px; height: 14px; }
+:root[data-skin='mac'] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-skin='mac'] ::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, .42); border: 4px solid transparent; background-clip: content-box; border-radius: 10px; }
+:root[data-skin='mac'] ::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, .65); background-clip: content-box; }

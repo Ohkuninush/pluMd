@@ -1,5 +1,6 @@
 import { icon, hydrateIcons } from './icons.js';
 import { LANGS } from './highlight.js';
+import { listSkins } from './skins.js';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -54,7 +55,18 @@ const TABS = [
     groups: [
       grp('Vistas', lg('mode-read', 'Lectura', 'eye', 'Documento limpio, editable (Ctrl+E)', 'mode-read'), lg('mode-source', 'Código', 'filecode', 'Markdown sin renderizar (Ctrl+E)', 'mode-source')),
       grp('Zoom', lg('zoom-in', 'Acercar', 'zoomin'), lg('zoom-out', 'Alejar', 'zoomout'), lg('zoom-reset', '100%', 'search', 'Zoom al 100%')),
-      grp('Tema', lg('theme-light', 'Claro', 'sun', 'Tema claro', 'theme-light'), lg('theme-dark', 'Oscuro', 'moon', 'Tema oscuro', 'theme-dark')),
+      grp('Panel', lg('toggle-sidebar', 'Panel de carpetas', 'sidebar', 'Mostrar u ocultar el panel de carpetas (Ctrl+Mayús+E)', 'sidebar')),
+      grp('Esquema', lg('fold-all', 'Contraer títulos', 'chevronup', 'Contraer todos los títulos (Ctrl+Mayús+[ en uno)'), lg('unfold-all', 'Expandir todo', 'chevron', 'Expandir todos los títulos plegados')),
+      // Los skins disponibles salen del registro, así que los de plugins aparecerán aquí sin tocar la cinta.
+      grp('Aspecto', ...listSkins().map((k) => lg(`skin-${k.id}`, k.name, k.icon, k.description, `skin-${k.id}`))),
+      grp('Modo', lg('theme-light', 'Claro', 'sun', 'Tema claro', 'theme-light'), lg('theme-dark', 'Oscuro', 'moon', 'Tema oscuro', 'theme-dark')),
+      grp('Colores', lg('colors', 'Personalizar colores', 'palette', 'Elegir los colores de títulos, negrita, texto y más')),
+    ],
+  },
+  {
+    id: 'help',
+    groups: [
+      grp('Información', lg('about', 'Acerca de', 'info', 'Versión, autor y licencia'), lg('repo', 'Proyecto en GitHub', 'link', 'Abrir el repositorio en GitHub')),
     ],
   },
 ];
@@ -112,7 +124,7 @@ export function createRibbon({ run }) {
   fileMenu.className = 'popup menu';
   fileMenu.hidden = true;
   fileMenu.innerHTML = [
-    ['new', 'Nuevo', 'filecode'], ['open', 'Abrir…   Ctrl+O', 'open'], ['save', 'Guardar   Ctrl+S', 'save'], ['saveas', 'Guardar como…', 'saveas'],
+    ['new', 'Nuevo   Ctrl+N', 'filecode'], ['open', 'Abrir…   Ctrl+O', 'open'], ['open-folder', 'Abrir carpeta…   Ctrl+Mayús+O', 'folder'], ['save', 'Guardar   Ctrl+S', 'save'], ['saveas', 'Guardar como…', 'saveas'], ['close', 'Cerrar documento   Ctrl+W', 'open'], ['about', 'Acerca de…', 'info'],
   ].map(([c, l, i]) => `<button type="button" data-cmd="${c}">${icon(i, 16)}<span>${l}</span></button>`).join('');
   document.body.append(fileMenu);
 
