@@ -33,7 +33,7 @@ function el(tag, cls, text) {
 
 function focusCell(wrap, r, c, selectAll = false) {
   const cols = wrap._model.cells[0].length;
-  const inp = wrap.querySelectorAll('input')[r * cols + c];
+  const inp = wrap.querySelectorAll('textarea')[r * cols + c];
   if (inp) {
     inp.focus();
     if (selectAll) inp.select();
@@ -41,9 +41,22 @@ function focusCell(wrap, r, c, selectAll = false) {
   }
 }
 
+// El texto de una celda se ajusta al ancho de su columna: la celda crece en alto en vez de cortarse.
+function fit(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+const fitAll = (wrap) => wrap.querySelectorAll('textarea').forEach(fit);
+// ¿El texto de la celda ocupa más de una línea visual?
+const multiLine = (ta) => ta.scrollHeight > parseFloat(getComputedStyle(ta).lineHeight) * 1.5 + 14;
+
 function renderTable(wrap, view, model, focus) {
   wrap._model = model;
   wrap.textContent = '';
+  // Reajusta las alturas cuando cambia el ancho disponible (ventana, panel lateral) y al insertarse en el documento.
+  wrap._ro?.disconnect();
+  wrap._ro = new ResizeObserver(() => fitAll(wrap));
+  wrap._ro.observe(wrap);
   const cols = model.cells[0].length;
   const cur = () => ({ r: wrap._r ?? model.cells.length - 1, c: wrap._c ?? cols - 1 });
 
@@ -128,6 +141,7 @@ function renderTable(wrap, view, model, focus) {
       next[c] = left;
       next[c + 1] = pair - left;
       next.forEach((w, i) => { cols$[i].style.width = (w / total) * 100 + '%'; });
+      fitAll(wrap);
     };
     const up = () => {
       grip.removeEventListener('pointermove', move);
@@ -148,15 +162,19 @@ function renderTable(wrap, view, model, focus) {
     const tr = el('tr');
     row.forEach((val, c) => {
       const td = el(r === 0 ? 'th' : 'td');
-      const inp = el('input');
-      inp.type = 'text';
+      const inp = el('textarea');
+      inp.rows = 1;
       inp.value = val;
       inp.spellcheck = false;
       if (model.align[c]) inp.style.textAlign = model.align[c];
       inp.addEventListener('focus', () => { wrap._r = r; wrap._c = c; });
       inp.addEventListener('input', () => {
+        // Una celda Markdown es una sola línea: un salto pegado se convierte en espacio.
+        if (inp.value.includes('\n') || inp.value.includes('\r')) inp.value = inp.value.replace(/[\r\n]+/g, ' ');
         model.cells[r][c] = inp.value;
+        fit(inp);
         commit(wrap, view, model);
+        view.requestMeasure();
       });
       inp.addEventListener('keydown', (e) => {
         const rows = model.cells.length;
@@ -168,9 +186,12 @@ function renderTable(wrap, view, model, focus) {
           else if (r < rows - 1) go(r + 1, 0);
           else { e.preventDefault(); model.cells.push(Array(cols).fill('')); apply({ r: rows, c: 0 }); }
         } else if (e.key === 'Enter' || e.key === 'ArrowDown') {
+          // En una celda de varias líneas, la flecha recorre primero sus líneas.
+          if (e.key === 'ArrowDown' && multiLine(inp) && inp.selectionStart !== inp.value.length) return;
           if (r < rows - 1) go(r + 1, c);
           else if (e.key === 'Enter') { e.preventDefault(); model.cells.push(Array(cols).fill('')); apply({ r: rows, c }); }
         } else if (e.key === 'ArrowUp') {
+          if (multiLine(inp) && inp.selectionStart !== 0) return;
           if (r > 0) go(r - 1, c);
         } else if (e.key === 'Escape') {
           e.preventDefault();
@@ -194,6 +215,7 @@ function renderTable(wrap, view, model, focus) {
     table.append(tr);
   });
   wrap.append(table);
+  fitAll(wrap);
 
   if (focus) focusCell(wrap, focus.r, focus.c);
 }
@@ -219,6 +241,9 @@ class TableWidget extends WidgetType {
       renderTable(dom, view, parseTable(this.text));
     }
     return true;
+  }
+  destroy(dom) {
+    dom._ro?.disconnect();
   }
   ignoreEvent() {
     return true;
