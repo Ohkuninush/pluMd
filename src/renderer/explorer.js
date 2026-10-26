@@ -256,8 +256,11 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
     n?.querySelector(':scope > .tn-row')?.classList.add('active');
   }
 
+  // Una ruta (C:\carpeta o \servidor\recurso) no es un filtro: se usa para cambiar de carpeta con Intro.
+  const isPathText = (t) => /^[a-zA-Z]:[\\/]/.test(t) || /^\\\\[^\\]/.test(t);
+
   function applyFilter() {
-    const q = filter.value.trim().toLowerCase();
+    const q = isPathText(filter.value.trim()) ? '' : filter.value.trim().toLowerCase();
     const visit = (el) => {
       let any = false;
       for (const n of el.querySelectorAll(':scope > .tn')) {
@@ -278,6 +281,15 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
     visit(tree);
   }
   filter.addEventListener('input', applyFilter);
+  filter.addEventListener('keydown', async (e) => {
+    const t = filter.value.trim().replace(/^"|"$/g, '');
+    if (e.key !== 'Enter' || !isPathText(t)) return;
+    e.preventDefault();
+    if (!(await window.api.isDir(t))) return notify(`No existe la carpeta: ${t}`);
+    // Por seguridad, la carpeta se confirma en el diálogo del sistema, que se abre ya en esa ruta.
+    const dir = await window.api.pickFolder(t);
+    if (dir) await setRoot(dir);
+  });
 
   // ---- Entrada de nombre en línea ----
   function inlineInput({ value, depth, selectBase, submit, cancel }) {

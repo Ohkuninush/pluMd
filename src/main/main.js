@@ -108,8 +108,11 @@ const guard = (fn) => async (_e, ...args) => {
   }
 };
 
-ipcMain.handle('fs:pickFolder', async () => {
-  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
+ipcMain.handle('fs:pickFolder', async (_e, startAt) => {
+  const r = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory'],
+    ...(typeof startAt === 'string' && startAt ? { defaultPath: startAt } : {}),
+  });
   if (r.canceled) return null;
   await access.allowRoot(r.filePaths[0]);
   return r.filePaths[0];

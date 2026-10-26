@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('api', {
     if (p) ipcRenderer.send('access:dropped', p);
     return p;
   },
-  pickFolder: () => ipcRenderer.invoke('fs:pickFolder'),
+  pickFolder: (startAt) => ipcRenderer.invoke('fs:pickFolder', startAt),
   isDir: (p) => ipcRenderer.invoke('fs:isDir', p),
   fsSetRoot: (p) => ipcRenderer.invoke('fs:setRoot', p),
   fsListDir: (p) => ipcRenderer.invoke('fs:listDir', p),

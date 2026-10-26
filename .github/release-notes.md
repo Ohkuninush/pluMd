@@ -14,6 +14,7 @@ PluMd 0.2.4: corrige el pegado de imágenes de la 0.2.3, que fallaba con el erro
 
 ## Novedades
 
+- Panel de carpetas: al escribir una ruta (por ejemplo `C:\Datos` o `\servidorecurso`) en la caja del panel y pulsar Intro, se abre el diálogo de carpeta ya situado en esa ruta; al aceptar, pasa a ser la carpeta del panel. Sirve para saltar de una unidad de red a una local y al revés.
 - Pegar imágenes (0.2.3, arreglado en la 0.2.4): con una captura o imagen en el portapapeles, Ctrl+V (o el botón Pegar) la guarda como PNG en una carpeta `imagenes` junto al documento, con nombre `aammdd_hhmm.png` (por ejemplo `261026_1432.png`; si ya existe, `_2`, `_3`...), y deja el vínculo en el texto. El documento debe estar guardado antes.
 - Novedades de la 0.2.2:
 - Las junctions y enlaces simbólicos que apuntan fuera de la carpeta abierta ya no se listan, y no se puede crear, renombrar, copiar ni borrar a través de ellos.
