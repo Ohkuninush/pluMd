@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   openLocal: (url, baseDir) => ipcRenderer.invoke('shell:openLocal', url, baseDir),
   pickImage: () => ipcRenderer.invoke('file:pickImage'),
+  pasteImage: (docPath) => ipcRenderer.invoke('image:pasteClipboard', docPath),
   clipboardRead: () => ipcRenderer.invoke('clipboard:read'),
   clipboardWrite: (t) => ipcRenderer.invoke('clipboard:write', t),
   appInfo: () => ipcRenderer.invoke('app:info'),

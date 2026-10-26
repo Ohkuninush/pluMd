@@ -475,9 +475,11 @@ export async function clipCopy(view, cut = false) {
   view.focus();
 }
 
-export async function clipPaste(view) {
+// Si el portapapeles no tiene texto, `onNoText` (p. ej. pegar una imagen) recibe el turno.
+export async function clipPaste(view, onNoText) {
   const text = await window.api.clipboardRead();
   if (text) view.dispatch(view.state.replaceSelection(text), { scrollIntoView: true, userEvent: 'input.paste' });
+  else if (onNoText) await onNoText(view);
   view.focus();
 }
 

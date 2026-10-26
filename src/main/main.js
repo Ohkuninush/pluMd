@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, protocol, net } =
 const fs = require('fs');
 const path = require('path');
 const { createFsOps } = require('./fsops');
-const { MD_RE, createAccess, writeAtomic } = require('./acceso');
+const { MD_RE, createAccess, writeAtomic, savePastedImage } = require('./acceso');
 const { createPlugins, registerScheme } = require('./plugins');
 
 // El esquema plumd-plugin:// (ficheros de los plugins) debe registrarse antes de que la app esté lista.
@@ -245,6 +245,14 @@ ipcMain.handle('file:pickImage', async () => {
   return r.canceled ? null : r.filePaths[0];
 });
 
+// Imagen del portapapeles (p. ej. una captura) -> «imagenes/aammdd_hhmm.png» junto al documento.
+// La imagen la lee el proceso principal del propio portapapeles: el renderer no envía datos.
+ipcMain.handle('image:pasteClipboard', async (_e, docPath) => {
+  if (!(await mayUse(docPath))) throw denied();
+  const img = clipboard.readImage();
+  if (img.isEmpty()) return { ok: false };
+  return { ok: true, ...(await savePastedImage(docPath, img.toPNG())) };
+});
 ipcMain.handle('clipboard:read', () => clipboard.readText());
 ipcMain.handle('clipboard:write', (_e, text) => clipboard.writeText(String(text)));
 
