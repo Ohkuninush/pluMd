@@ -201,9 +201,22 @@ const view = new EditorView({ parent: $('editor'), state: first.state });
 const docName = (d) => (d.file ? d.file.split(/[\\/]/).pop() : d.untitled > 1 ? `Documento sin título ${d.untitled}` : 'Documento sin título');
 
 function updateTitle() {
+  if (!cur) {
+    $('filename').textContent = '';
+    $('dirty').hidden = true;
+    window.api.setTitle('PluMd');
+    return;
+  }
   $('filename').textContent = docName(cur);
   $('dirty').hidden = !cur.dirty;
   window.api.setTitle(`${cur.dirty ? '● ' : ''}${docName(cur)} — PluMd`);
+}
+
+// Sin documentos abiertos: se oculta el editor y se ofrece crear uno nuevo o abrir un fichero.
+function showNoDocs(on) {
+  $('editor').hidden = on;
+  $('no-docs').hidden = !on;
+  if (on) $('wordcount').textContent = '';
 }
 
 function showBanner(text, actions = [], sticky = false) {
@@ -262,6 +275,7 @@ function activate(doc) {
     cur.scroll = scroller().scrollTop;
   }
   cur = doc;
+  showNoDocs(false);
   // La carpeta base se fija antes de montar el estado para que las imágenes relativas se resuelvan bien.
   setBaseDir(doc.file ? dirname(doc.file) : null);
   view.setState(doc.state);
@@ -313,11 +327,22 @@ function newDoc() {
 }
 
 function closeDoc(d) {
+  if (!d) return;
   if (d.dirty && !confirm(`«${docName(d)}» tiene cambios sin guardar. ¿Cerrar sin guardar?`)) return;
   const i = docs.indexOf(d);
   docs.splice(i, 1);
   emit('document:closed', { path: d.file || null });
-  if (!docs.length) return newDoc();
+  if (!docs.length) {
+    // Se puede cerrar todo: no se abre otro documento solo. La numeración de «sin título» vuelve a empezar.
+    cur = null;
+    untitledCount = 0;
+    showNoDocs(true);
+    renderTabs();
+    updateTitle();
+    explorer?.setActive(null);
+    ribbon?.update(formatState(view.state));
+    return;
+  }
   if (d === cur) activate(docs[Math.min(i, docs.length - 1)]);
   else renderTabs();
 }
@@ -343,6 +368,7 @@ async function openFile(path) {
 
 async function save(force = false) {
   const d = cur;
+  if (!d) return;
   if (!d.file) return saveAs();
   const content = view.state.doc.toString();
   let r;
@@ -369,6 +395,7 @@ async function save(force = false) {
 
 async function saveAs() {
   const d = cur;
+  if (!d) return;
   const content = view.state.doc.toString();
   const p = await window.api.saveAsDialog(d.file || 'sin-titulo.md');
   if (!p) return;
@@ -503,7 +530,8 @@ commands['style-normal'] = (v) => setParagraphStyle(v, 'normal');
 commands['style-quote'] = (v) => setParagraphStyle(v, 'quote');
 
 // Los comandos del núcleo viven en el mismo registro que los de los plugins.
-for (const [id, fn] of Object.entries(commands)) registerCommand({ id, run: (arg) => fn(view, arg) });
+// Sin documento abierto, los comandos que actúan sobre el texto (los que reciben el editor) no hacen nada.
+for (const [id, fn] of Object.entries(commands)) registerCommand({ id, run: (arg) => (fn.length > 0 && !cur ? undefined : fn(view, arg)) });
 function syncSkinCommands() {
   for (const k of listSkins()) if (!getCommand(`skin-${k.id}`)) registerCommand({ id: `skin-${k.id}`, run: () => chooseSkin(k.id) });
 }
@@ -591,6 +619,8 @@ setMode('read');
 setZoom(100);
 renderTabs();
 updateTitle();
+$('nd-new').addEventListener('click', () => newDoc());
+$('nd-open').addEventListener('click', () => commands.open());
 
 // Plugins: se cargan al final, cuando la interfaz ya está lista. Si fallan, la aplicación sigue funcionando.
 (async () => {
@@ -670,6 +700,7 @@ window.addEventListener('keydown', async (e) => {
   else if (k === 'w') { e.preventDefault(); closeDoc(cur); }
   else if (k === 'tab') {
     e.preventDefault();
+    if (docs.length < 2) return;
     const i = docs.indexOf(cur);
     activate(docs[(i + (e.shiftKey ? docs.length - 1 : 1)) % docs.length]);
   }
