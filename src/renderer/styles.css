@@ -197,6 +197,9 @@ main { flex: 1; min-height: 0; overflow: auto; background: var(--bg); }
 .cm-table-widget table { border-collapse: collapse; width: 100%; table-layout: fixed; }
 .cm-table-widget th, .cm-table-widget td { border: 1px solid var(--border); padding: 0; }
 .cm-table-widget input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; padding: 7px 10px; }
+.cm-table-widget th { position: relative; }
+.tbl-grip { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 2; touch-action: none; }
+.tbl-grip:hover, .tbl-grip.dragging { background: var(--accent); opacity: .55; }
 .cm-table-widget th input { font-weight: 650; background: var(--bg-2); }
 .cm-table-widget input:focus { box-shadow: inset 0 0 0 2px var(--accent); }
 .tbl-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; opacity: 0; transition: opacity .12s; }

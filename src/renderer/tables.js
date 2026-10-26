@@ -2,52 +2,7 @@ import { StateField } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 
-// ---- Modelo de tabla <-> texto Markdown ----
-
-function splitRow(line) {
-  let s = line.trim();
-  if (s.startsWith('|')) s = s.slice(1);
-  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
-  const cells = [];
-  let cur = '';
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (c === '\\' && s[i + 1] === '|') { cur += '|'; i++; }
-    else if (c === '|') { cells.push(cur.trim()); cur = ''; }
-    else cur += c;
-  }
-  cells.push(cur.trim());
-  return cells;
-}
-
-function parseTable(text) {
-  const lines = text.split('\n').filter((l) => l.trim() !== '');
-  const header = splitRow(lines[0]);
-  const delim = lines[1] ? splitRow(lines[1]) : [];
-  const cols = header.length;
-  const align = header.map((_, i) => {
-    const d = delim[i] || '';
-    if (/^:-+:$/.test(d)) return 'center';
-    if (/^-+:$/.test(d)) return 'right';
-    if (/^:-+$/.test(d)) return 'left';
-    return null;
-  });
-  const cells = [header, ...lines.slice(2).map(splitRow)].map((r) => {
-    const row = r.slice(0, cols);
-    while (row.length < cols) row.push('');
-    return row;
-  });
-  if (cells.length < 2) cells.push(Array(cols).fill(''));
-  return { cells, align };
-}
-
-const esc = (v) => v.replace(/\|/g, '\\|').replace(/\n/g, ' ');
-
-function serialize({ cells, align }) {
-  const row = (r) => '| ' + r.map(esc).join(' | ') + ' |';
-  const delim = align.map((a) => (a === 'center' ? ':---:' : a === 'right' ? '---:' : a === 'left' ? ':---' : '---'));
-  return [row(cells[0]), '| ' + delim.join(' | ') + ' |', ...cells.slice(1).map(row)].join('\n');
-}
+import { parseTable, serialize, toDashes } from './tablaModelo.mjs';
 
 // ---- Localizar la tabla que corresponde a un widget ----
 
@@ -124,6 +79,7 @@ function renderTable(wrap, view, model, focus) {
     const at = c + 1;
     model.cells.forEach((row) => row.splice(at, 0, ''));
     model.align.splice(at, 0, null);
+    if (model.widths) model.widths.splice(at, 0, Math.round(model.widths.reduce((x, y) => x + y, 0) / model.widths.length));
     apply({ r, c: at });
   });
   tool('− Columna', 'Eliminar la columna de la celda activa', () => {
@@ -131,6 +87,7 @@ function renderTable(wrap, view, model, focus) {
     if (cols <= 1) return;
     model.cells.forEach((row) => row.splice(c, 1));
     model.align.splice(c, 1);
+    if (model.widths) model.widths.splice(c, 1);
     apply({ r, c: Math.min(c, cols - 2) });
   });
   tool('Eliminar tabla', 'Eliminar la tabla entera (se puede deshacer con Ctrl+Z)', () => {
@@ -143,6 +100,50 @@ function renderTable(wrap, view, model, focus) {
   wrap.append(tools);
 
   const table = el('table');
+  const colgroup = el('colgroup');
+  const sum = model.widths ? model.widths.reduce((x, y) => x + y, 0) : cols;
+  for (let c = 0; c < cols; c++) {
+    const col = el('col');
+    col.style.width = ((model.widths ? model.widths[c] : 1) / sum) * 100 + '%';
+    colgroup.append(col);
+  }
+  table.append(colgroup);
+
+  // Arrastrar el borde derecho de una cabecera reparte el ancho entre esa columna y la siguiente.
+  const startResize = (e, c, grip) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const MIN = 40;
+    const cols$ = [...colgroup.children];
+    const px = [...table.rows[0].cells].map((th) => th.getBoundingClientRect().width);
+    const total = px.reduce((x, y) => x + y, 0);
+    const pair = px[c] + px[c + 1];
+    const x0 = e.clientX;
+    let next = null;
+    grip.setPointerCapture(e.pointerId);
+    grip.classList.add('dragging');
+    const move = (ev) => {
+      const left = pair < 2 * MIN ? pair / 2 : Math.min(pair - MIN, Math.max(MIN, px[c] + ev.clientX - x0));
+      next = px.slice();
+      next[c] = left;
+      next[c + 1] = pair - left;
+      next.forEach((w, i) => { cols$[i].style.width = (w / total) * 100 + '%'; });
+    };
+    const up = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      grip.classList.remove('dragging');
+      if (!next) return;
+      model.widths = toDashes(next);
+      commit(wrap, view, model);
+      view.requestMeasure();
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  };
+
   model.cells.forEach((row, r) => {
     const tr = el('tr');
     row.forEach((val, c) => {
@@ -177,6 +178,17 @@ function renderTable(wrap, view, model, focus) {
         }
       });
       td.append(inp);
+      if (r === 0 && c < cols - 1) {
+        const grip = el('span', 'tbl-grip');
+        grip.title = 'Arrastra para cambiar el ancho de la columna (doble clic: igualar anchos)';
+        grip.addEventListener('pointerdown', (e) => startResize(e, c, grip));
+        grip.addEventListener('dblclick', (e) => {
+          e.preventDefault();
+          model.widths = null;
+          apply(null);
+        });
+        td.append(grip);
+      }
       tr.append(td);
     });
     table.append(tr);
