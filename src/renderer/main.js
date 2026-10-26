@@ -60,6 +60,32 @@ const linkClicks = EditorView.domEventHandlers({
   },
 });
 
+// Pega la imagen del portapapeles en «imagenes/» junto al documento y deja el vínculo en el texto.
+async function pasteImage(v) {
+  if (!cur || !cur.file) return showBanner('Guarda el documento antes de pegar una imagen: se guarda en una carpeta «imagenes» junto a él.');
+  let r;
+  try {
+    r = await window.api.pasteImage(cur.file);
+  } catch (e) {
+    return showBanner(`No se pudo pegar la imagen: ${e.message}`);
+  }
+  if (!r.ok) return;
+  v.dispatch(v.state.replaceSelection(`![](${r.relative})`), { scrollIntoView: true, userEvent: 'input.paste' });
+  toast(`Imagen guardada como ${r.relative}`);
+}
+
+// Ctrl+V con una imagen en el portapapeles (y sin texto): se guarda como fichero en vez de pegarse.
+const imagePaste = EditorView.domEventHandlers({
+  paste(e, v) {
+    const t = e.clipboardData;
+    if (!t || t.types.includes('text/plain')) return false;
+    if (![...t.items].some((i) => i.kind === 'file' && i.type.startsWith('image/'))) return false;
+    e.preventDefault();
+    pasteImage(v);
+    return true;
+  },
+});
+
 // Web y correo van al navegador; una carpeta se abre en el Explorador; un .md se abre en una pestaña.
 async function openLink(url) {
   const u = normalizeUrl(url);
@@ -140,6 +166,7 @@ const baseExtensions = [
     ...foldKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap,
   ]),
   linkClicks,
+  imagePaste,
   modeCompartment.of(modeExtensions(state.mode)),
   pluginCompartment.of(pluginExtensions()),
   EditorView.updateListener.of((u) => {
@@ -420,7 +447,7 @@ const commands = {
   // Portapapeles y edición
   undo: (v) => (undo(v), v.focus()),
   redo: (v) => (redo(v), v.focus()),
-  paste: (v) => clipPaste(v),
+  paste: (v) => clipPaste(v, pasteImage),
   cut: (v) => clipCopy(v, true),
   copy: (v) => clipCopy(v, false),
   find: (v) => openSearchPanel(v),

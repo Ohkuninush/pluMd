@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { realPath, writeAtomic, createAccess, within, key } = require('../src/main/acceso');
+const { realPath, writeAtomic, savePastedImage, createAccess, within, key } = require('../src/main/acceso');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'plumd-test-'));
 const rm = (d) => fs.rmSync(d, { recursive: true, force: true });
@@ -92,6 +92,40 @@ test('las carpetas autorizadas se recuerdan entre sesiones', async () => {
     const b = createAccess({ storeFile: store });
     assert.equal(await b.rootAllowed(carpeta), true);
     assert.equal(await b.rootAllowed(d), false);
+  } finally {
+    rm(d);
+  }
+});
+
+test('savePastedImage crea «imagenes», nombra aammdd_hhmm y no sobrescribe', async () => {
+  const d = tmp();
+  try {
+    const doc = path.join(d, 'nota.md');
+    fs.writeFileSync(doc, '# x');
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const hora = new Date(2026, 9, 26, 14, 32, 5); // 26/10/2026 14:32
+    const a = await savePastedImage(doc, png, hora);
+    assert.equal(a.name, '261026_1432.png');
+    assert.equal(a.relative, 'imagenes/261026_1432.png');
+    const b = await savePastedImage(doc, Buffer.from([1, 2, 3]), hora);
+    assert.equal(b.name, '261026_1432_2.png');
+    assert.deepEqual(fs.readFileSync(a.path), png);
+    assert.deepEqual(fs.readdirSync(path.join(d, 'imagenes')).sort(), ['261026_1432.png', '261026_1432_2.png']);
+  } finally {
+    rm(d);
+  }
+});
+
+test('savePastedImage rechaza una carpeta «imagenes» que sea un enlace hacia fuera', async () => {
+  const d = tmp();
+  try {
+    const doc = path.join(d, 'docs', 'nota.md');
+    fs.mkdirSync(path.join(d, 'docs'));
+    fs.mkdirSync(path.join(d, 'fuera'));
+    fs.writeFileSync(doc, '# x');
+    fs.symlinkSync(path.join(d, 'fuera'), path.join(d, 'docs', 'imagenes'), 'junction');
+    await assert.rejects(() => savePastedImage(doc, Buffer.from([1])), /fuera de la carpeta/);
+    assert.deepEqual(fs.readdirSync(path.join(d, 'fuera')), []);
   } finally {
     rm(d);
   }

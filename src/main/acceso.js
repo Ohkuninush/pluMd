@@ -55,6 +55,30 @@ async function writeAtomic(file, content) {
   }
 }
 
+// Guarda una imagen pegada en la carpeta «imagenes» junto al documento, con nombre aammdd_hhmm.png
+// (los dos puntos no son válidos en nombres de Windows). Nunca sobrescribe: si el nombre existe añade _2, _3...
+// Si «imagenes» fuera un enlace o junction hacia fuera de la carpeta del documento, se rechaza.
+async function savePastedImage(docPath, png, now = new Date()) {
+  const docDir = path.dirname(await realPath(docPath));
+  const dir = path.join(docDir, 'imagenes');
+  await fs.promises.mkdir(dir, { recursive: true });
+  if (!within(key(await realPath(dir)), key(docDir))) {
+    throw new Error('La carpeta «imagenes» apunta fuera de la carpeta del documento.');
+  }
+  const p2 = (n) => String(n).padStart(2, '0');
+  const stamp = `${p2(now.getFullYear() % 100)}${p2(now.getMonth() + 1)}${p2(now.getDate())}_${p2(now.getHours())}${p2(now.getMinutes())}`;
+  for (let n = 1; n < 100; n++) {
+    const name = `${stamp}${n === 1 ? '' : '_' + n}.png`;
+    try {
+      await fs.promises.writeFile(path.join(dir, name), png, { flag: 'wx' });
+      return { name, relative: 'imagenes/' + name, path: path.join(dir, name) };
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+    }
+  }
+  throw new Error('Demasiadas imágenes con el mismo nombre en el mismo minuto.');
+}
+
 const MAX_ROOTS = 20;
 
 // Carpetas y ficheros autorizados. Las carpetas elegidas se recuerdan entre sesiones (el panel reabre la última).
@@ -113,4 +137,4 @@ function createAccess({ storeFile = null } = {}) {
   };
 }
 
-module.exports = { MD_RE, key, within, realPath, writeAtomic, createAccess };
+module.exports = { MD_RE, key, within, realPath, writeAtomic, savePastedImage, createAccess };
