@@ -18,7 +18,7 @@ Abre un "Issue" en GitHub. Indica qué hacías, qué esperabas que pasara y qué
    ```
 
 4. Haz el cambio. Mantén el estilo del código que ya hay: mismos nombres, mismo nivel de comentarios y comentarios en español.
-5. Comprueba que la aplicación arranca y que lo que has tocado funciona. Si cambias el comportamiento del editor, prueba también el modo Lectura y el modo Código.
+5. Comprueba que la aplicación arranca y que lo que has tocado funciona, y ejecuta `npm test`: las pruebas también se ejecutan en cada Pull Request. Si cambias el comportamiento del editor, prueba también el modo Lectura y el modo Código.
 6. Abre un Pull Request describiendo qué cambia y por qué. Un cambio pequeño y enfocado se revisa antes que uno grande.
 
 El responsable del proyecto revisa cada Pull Request antes de aceptarlo y puede pedir ajustes.
