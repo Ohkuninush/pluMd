@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('api', {
   fsCopy: (src, dir) => ipcRenderer.invoke('fs:copy', src, dir),
   fsDelete: (p, permanent) => ipcRenderer.invoke('fs:delete', p, permanent === true),
   fsMkdir: (dir, name) => ipcRenderer.invoke('fs:mkdir', dir, name),
+  fsCheckDir: (p) => ipcRenderer.invoke('fs:checkDir', p),
   fsDeleteDir: (p) => ipcRenderer.invoke('fs:deleteDir', p),
   reveal: (p) => ipcRenderer.invoke('fs:reveal', p),
   imageCopy: (docPath, src) => ipcRenderer.invoke('image:copy', docPath, src),

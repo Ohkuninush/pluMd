@@ -58,8 +58,11 @@ function linkGroup(d, link) {
 
 function imageGroup(d, img) {
   const { view } = d;
+  // Solo imágenes locales y de un documento ya guardado: el proceso principal comprueba que el documento esté autorizado.
   const remote = isRemote(img.url);
-  const onlyLocal = remote ? 'Solo para imágenes guardadas en este equipo.' : undefined;
+  const saved = !!d.docPath();
+  const unavailable = remote || !saved;
+  const why = remote ? 'Solo para imágenes guardadas en este equipo.' : !saved ? 'Guarda el documento primero.' : undefined;
   // El proceso principal resuelve la ruta; aquí solo se muestra el aviso (éxito o error).
   const runImage = async (fn, done) => {
     const r = await fn(d.docPath(), img.url);
@@ -67,9 +70,9 @@ function imageGroup(d, img) {
     else if (done) d.notify(done);
   };
   return [
-    { label: 'Copiar imagen', icon: 'copy', disabled: remote, title: onlyLocal, run: () => runImage(window.api.imageCopy, 'Imagen copiada.') },
+    { label: 'Copiar imagen', icon: 'copy', disabled: unavailable, title: why, run: () => runImage(window.api.imageCopy, 'Imagen copiada.') },
     { label: 'Copiar dirección', icon: 'link', run: async () => { await d.copyText(img.url); d.notify('Dirección copiada.'); } },
-    { label: 'Mostrar en el Explorador de Windows', icon: 'reveal', disabled: remote, title: onlyLocal, run: () => runImage(window.api.imageReveal) },
+    { label: 'Mostrar en el Explorador de Windows', icon: 'reveal', disabled: unavailable, title: why, run: () => runImage(window.api.imageReveal) },
     { label: 'Editar texto alternativo y ruta…', icon: 'pencil', run: () => d.run('image') },
     {
       label: 'Eliminar imagen',

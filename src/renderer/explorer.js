@@ -11,7 +11,7 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } },
 };
 
-const NET_FOLDER_MSG = 'En una unidad de red no hay Papelera: borra la carpeta desde el Explorador de Windows.';
+const NOT_FIXED_MSG = 'Solo se pueden borrar carpetas en discos fijos. Bórrala desde el Explorador de Windows.';
 
 const base = (p) => p.split(/[\\/]/).pop();
 const parent = (p) => p.replace(/[\\/][^\\/]*$/, '');
@@ -28,6 +28,7 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
 
   let root = null;
   let rootNet = false;
+  let rootFixed = false;
   let activePath = null;
   let selected = null;
   let clip = null;
@@ -202,6 +203,7 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
     }
     root = r.path;
     rootNet = r.network;
+    rootFixed = r.fixed;
     clip = null;
     selected = null;
     store.set('sb:root', root);
@@ -466,13 +468,15 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
     notify(`${what} copiado.`);
   }
 
-  // Una carpeta se envía entera a la Papelera (con lo que no son documentos Markdown). En red no se borra desde aquí.
+  // Una carpeta solo se borra si el proceso principal lo permite (disco fijo y nada que el panel no muestre).
+  // Se consulta antes de pedir la confirmación, para no hacer confirmar algo que luego se rechaza.
   async function removeFolder(p) {
-    if (rootNet) return notify(NET_FOLDER_MSG);
+    const check = await window.api.fsCheckDir(p);
+    if (!check.ok) return notify(check.error);
     const warnDirty = isOpenDirty(p, true) ? ' Ojo: hay documentos de esa carpeta con cambios sin guardar en pestañas abiertas.' : '';
     const ok = await confirm({
       title: 'Mover carpeta a la Papelera',
-      message: `La carpeta «${base(p)}» y todo lo que contiene (también lo que no son documentos Markdown) se moverá a la Papelera de reciclaje, de donde se puede recuperar.${warnDirty}`,
+      message: `La carpeta «${base(p)}» y los documentos que contiene se moverán a la Papelera de reciclaje, de donde se pueden recuperar.${warnDirty}`,
       okLabel: 'Mover a la Papelera',
       danger: true,
     });
@@ -544,8 +548,8 @@ export function createExplorer({ onOpen, onRenamed, onDeleted, isOpenDirty, conf
         label: isDir ? 'Borrar carpeta (a la Papelera)' : rootNet ? 'Borrar (definitivo, sin Papelera)' : 'Borrar (a la Papelera)',
         icon: 'trash',
         key: 'Supr',
-        disabled: isDir && rootNet,
-        title: isDir && rootNet ? NET_FOLDER_MSG : undefined,
+        disabled: isDir && !rootFixed,
+        title: isDir && !rootFixed ? NOT_FIXED_MSG : undefined,
         run: () => remove(node),
       });
     }
