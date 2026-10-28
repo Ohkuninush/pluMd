@@ -151,3 +151,68 @@ test('si no se puede saber el tipo de unidad se trata como red', async () => {
     t.done();
   }
 });
+
+test('crear carpeta: un solo nivel, sin pisar nada y dentro de la raíz', async () => {
+  const t = setup();
+  try {
+    await t.ops.setRoot(t.root);
+    const a = await t.ops.createDir(t.root, 'Notas');
+    assert.equal(a.ok, true);
+    assert.equal(fs.statSync(a.path).isDirectory(), true);
+    assert.equal((await t.ops.createDir(t.root, 'notas')).ok, false, 'ya existe (Windows no distingue mayúsculas)');
+    fs.writeFileSync(path.join(t.root, 'doc.md'), 'D');
+    assert.equal((await t.ops.createDir(t.root, 'doc.md')).ok, false);
+    assert.equal(fs.readFileSync(path.join(t.root, 'doc.md'), 'utf8'), 'D');
+    assert.equal((await t.ops.createDir(t.fuera, 'x')).ok, false);
+    for (const n of ['', '..', 'a/b', 'a\b', '.oculta', 'punto.', 'con', 'node_modules', 'x'.repeat(250)]) {
+      assert.equal((await t.ops.createDir(t.root, n)).ok, false, `debería rechazar «${n}»`);
+    }
+    assert.equal(fs.existsSync(path.join(t.root, 'a')), false);
+  } finally {
+    t.done();
+  }
+});
+
+test('borrar carpeta: a la Papelera; nunca la raíz, un enlace, una de fuera ni en red', async () => {
+  const t = setup();
+  try {
+    await t.ops.setRoot(t.root);
+    const d = path.join(t.root, 'vieja');
+    fs.mkdirSync(d);
+    fs.writeFileSync(path.join(d, 'a.md'), 'A');
+    fs.mkdirSync(path.join(t.fuera, 'ajena'));
+    fs.symlinkSync(path.join(t.fuera, 'ajena'), path.join(t.root, 'escape'), 'junction');
+    fs.mkdirSync(path.join(t.root, 'interna'));
+    fs.symlinkSync(path.join(t.root, 'interna'), path.join(t.root, 'atajo'), 'junction');
+
+    assert.equal((await t.ops.removeDir(t.root)).ok, false, 'la carpeta abierta no se borra');
+    assert.equal((await t.ops.removeDir(path.join(t.fuera, 'ajena'))).ok, false);
+    assert.equal((await t.ops.removeDir(path.join(t.root, 'escape'))).ok, false);
+    assert.equal((await t.ops.removeDir(path.join(t.root, 'atajo'))).ok, false, 'un enlace no se borra aunque quede dentro');
+    assert.equal((await t.ops.removeDir(path.join(d, 'a.md'))).ok, false, 'un documento no es una carpeta');
+    assert.deepEqual(t.calls.trash, []);
+
+    const r = await t.ops.removeDir(d);
+    assert.equal(r.ok, true);
+    assert.deepEqual(t.calls.trash, [d]);
+    assert.deepEqual(t.calls.unlink, []);
+  } finally {
+    t.done();
+  }
+});
+
+test('borrar carpeta en red no se hace desde la aplicación', async () => {
+  const t = setup({ network: true });
+  try {
+    await t.ops.setRoot(t.root);
+    const d = path.join(t.root, 'vieja');
+    fs.mkdirSync(d);
+    const r = await t.ops.removeDir(d);
+    assert.equal(r.ok, false);
+    assert.deepEqual(t.calls.trash, []);
+    assert.deepEqual(t.calls.unlink, []);
+    assert.equal(fs.existsSync(d), true);
+  } finally {
+    t.done();
+  }
+});

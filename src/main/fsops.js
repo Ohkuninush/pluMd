@@ -2,7 +2,8 @@
 // Reglas de seguridad:
 //  - Solo se opera dentro de la carpeta raíz que el usuario eligió, comparando la ruta REAL: un enlace
 //    simbólico o junction que salga de la raíz se trata como fuera de ella.
-//  - Solo documentos de texto (.md, .markdown, .txt); nunca se renombra ni se borra una carpeta.
+//  - Los documentos son de texto (.md, .markdown, .txt); nunca se renombra una carpeta. Una carpeta solo se crea
+//    (un nivel) o se envía a la Papelera (nunca la abierta en el panel, ni enlaces, ni en red).
 //  - Crear y copiar nunca sobrescriben nada.
 //  - Borrar envía a la Papelera de reciclaje. En unidades de red no hay Papelera y el borrado es definitivo:
 //    solo se hace si el llamador lo confirma de forma expresa (permanent). Si no se puede determinar el tipo
@@ -22,6 +23,12 @@ const msg = {
   exists: 'Ya existe un documento con ese nombre.',
   invalidName: 'El nombre no es válido: no puede estar vacío ni llevar \\ / : * ? " < > |',
   network: 'El documento está en una unidad de red: no hay Papelera y el borrado es definitivo.',
+  existsDir: 'Ya existe una carpeta o un documento con ese nombre.',
+  invalidDirName: 'El nombre no es válido: no puede estar vacío, empezar por un punto, acabar en punto o espacio, ni llevar \\ / : * ? " < > |',
+  isRoot: 'No se puede borrar la carpeta abierta en el panel.',
+  linkDir: 'Es un enlace o una unión a otra carpeta: bórrala desde el Explorador de Windows.',
+  networkDir: 'La carpeta está en una unidad de red: no hay Papelera, así que desde aquí no se borra. Hazlo desde el Explorador de Windows.',
+  notDir: 'No es una carpeta.',
 };
 
 // Tipo de unidad de Windows (4 = unidad de red). Devuelve null si no se puede saber.
@@ -69,6 +76,15 @@ function createFsOps({ trash, driveType = windowsDriveType, unlink = (p) => fs.p
     let name = String(raw || '').trim();
     if (!name || name === '.' || name === '..' || INVALID.test(name) || RESERVED.test(name) || name.length > 200) return null;
     if (!MD_RE.test(name)) name += keepExt || '.md';
+    return name;
+  }
+
+  // Nombre de carpeta: sin extensión añadida, sin puntos ni espacios finales (Windows los descarta) y sin
+  // empezar por punto ni llamarse como las carpetas que el panel oculta (no se vería después de crearla).
+  function cleanDirName(raw) {
+    const name = String(raw || '').trim();
+    if (!name || name === '.' || name === '..' || INVALID.test(name) || RESERVED.test(name) || name.length > 200) return null;
+    if (name.startsWith('.') || name.endsWith('.') || SKIP_DIRS.has(name.toLowerCase())) return null;
     return name;
   }
 
@@ -137,6 +153,20 @@ function createFsOps({ trash, driveType = windowsDriveType, unlink = (p) => fs.p
       }
     },
 
+    // Crea una carpeta (un solo nivel) dentro de la carpeta abierta. Nunca sobrescribe.
+    async createDir(dir, rawName) {
+      if (!(await contains(dir))) return { ok: false, error: msg.outside };
+      const name = cleanDirName(rawName);
+      if (!name) return { ok: false, error: msg.invalidDirName };
+      const target = path.join(dir, name);
+      try {
+        await fs.promises.mkdir(target);
+        return { ok: true, path: target };
+      } catch (e) {
+        return { ok: false, error: e.code === 'EEXIST' ? msg.existsDir : e.message };
+      }
+    },
+
     // Cambia el nombre dentro de la misma carpeta. Nunca sobrescribe otro documento.
     async rename(p, rawName) {
       if (!(await contains(p))) return { ok: false, error: msg.outside };
@@ -192,6 +222,23 @@ function createFsOps({ trash, driveType = windowsDriveType, unlink = (p) => fs.p
         if (net) await unlink(real);
         else await trash(p);
         return { ok: true, permanent: net };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    },
+
+    // Envía una carpeta (con todo su contenido) a la Papelera, para poder recuperarla. Nunca la carpeta abierta
+    // en el panel, ni un enlace o junction, ni una carpeta en red (allí la Papelera no existe: sería definitivo).
+    async removeDir(p) {
+      if (!(await contains(p))) return { ok: false, error: msg.outside };
+      try {
+        const real = await realPath(p);
+        if (norm(p) === root.key || norm(real) === root.realKey) return { ok: false, error: msg.isRoot };
+        if ((await fs.promises.lstat(p)).isSymbolicLink()) return { ok: false, error: msg.linkDir };
+        if (!(await fs.promises.stat(real)).isDirectory()) return { ok: false, error: msg.notDir };
+        if (await isNetworkPath(real)) return { ok: false, error: msg.networkDir };
+        await trash(p);
+        return { ok: true };
       } catch (e) {
         return { ok: false, error: e.message };
       }
